@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<script src="./image-slot.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: #FDF4F1; color: #3B2E5A; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-wrap: pretty; }
+  * { box-sizing: border-box; }
+  a { color: #3B2E5A; text-decoration: none; }
+  a:hover { color: #C97614; }
+  button { font-family: inherit; }
+  :focus-visible { outline: 3px solid #C97614; outline-offset: 3px; border-radius: 6px; }
+  @keyframes ozzBob { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-14px) rotate(1.5deg); } }
+  @keyframes ozzBlink { 0%,92%,100% { transform: scaleY(1); } 95% { transform: scaleY(0.08); } }
+  @keyframes ozzRise { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+  @keyframes ozzDot { 0%,60%,100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-5px); opacity: 1; } }
+  @media (max-width: 767px) {
+    .ozz-desktop-links { display: none !important; }
+    .ozz-burger { display: flex !important; }
+  }
+  @keyframes ozzSprout { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-9deg); } }
+  @keyframes ozzGlow { 0%,100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.09); opacity: .8; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</helmet>
+
+<div style="background: #FDF4F1; overflow-x: hidden;">
+
+  <header style="position: sticky; top: 0; z-index: 50; background: rgba(253,244,241,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(59,46,90,0.08);">
+    <nav style="max-width: 1180px; margin: 0 auto; padding: 14px 22px; display: flex; align-items: center; gap: 14px;">
+      <a href="#top" style="display: flex; align-items: center; gap: 9px; margin-right: auto;">
+        <svg viewBox="0 -18 120 134" width="30" height="34" aria-hidden="true" style="animation: ozzBob 6.5s ease-in-out infinite; overflow: visible;">
+          <defs>
+            <linearGradient id="ozzNav" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#FFC170"></stop><stop offset="0.55" stop-color="#FF9F43"></stop><stop offset="1" stop-color="#F1801F"></stop>
+            </linearGradient>
+          </defs>
+          <path d="M62 -14 C60 -6 58 -1 60 6" stroke="#6F9C5C" stroke-width="5" stroke-linecap="round" fill="none"></path>
+          <ellipse cx="71" cy="-9" rx="9" ry="5" fill="#6F9C5C" transform="rotate(-18 71 -9)" style="transform-origin: 60px 4px; animation: ozzSprout 3.4s ease-in-out infinite;"></ellipse>
+          <path d="M60 6 C90 6 111 28 112 56 C113 86 92 110 59 110 C28 110 8 87 9 57 C10 28 32 6 60 6 Z" fill="url(#ozzNav)"></path>
+          <g style="transform-origin: 45px 56px; animation: ozzBlink 4.5s ease-in-out infinite;">
+            <ellipse cx="45" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+            <circle cx="46" cy="58" r="5" fill="#3B2E5A"></circle>
+          </g>
+          <g style="transform-origin: 78px 56px; animation: ozzBlink 4.5s ease-in-out infinite;">
+            <ellipse cx="78" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+            <circle cx="79" cy="58" r="5" fill="#3B2E5A"></circle>
+          </g>
+          <ellipse cx="30" cy="78" rx="7" ry="4" fill="#F4736B" opacity="0.35"></ellipse>
+          <ellipse cx="93" cy="78" rx="7" ry="4" fill="#F4736B" opacity="0.35"></ellipse>
+        </svg>
+        <span style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 25px; letter-spacing: -0.01em; color: #3B2E5A;">Ozzily</span>
+      </a>
+      <div class="ozz-desktop-links" style="display: flex; align-items: center; gap: 22px;">
+        <a href="#how" style="font-size: 15px; font-weight: 500; color: #5A4A7D;">How it works</a>
+        <a href="#vibe" style="font-size: 15px; font-weight: 500; color: #5A4A7D;">The vibe</a>
+        <a href="#pricing" style="font-size: 15px; font-weight: 500; color: #5A4A7D;">Pricing</a>
+        <a href="#faq" style="font-size: 15px; font-weight: 500; color: #5A4A7D;">FAQ</a>
+      </div>
+      <button type="button" class="ozz-burger" onClick="{{ toggleMenu }}" aria-label="{{ menuLabel }}" aria-expanded="{{ menuExpanded }}" aria-controls="ozz-mobile-menu" style="display: none; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid rgba(59,46,90,0.14); background: #FFFDF9; border-radius: 14px; cursor: pointer; padding: 0;">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+            <path d="M6 6l12 12M18 6L6 18" stroke="#3B2E5A" stroke-width="2.2" stroke-linecap="round" fill="none" />
+          </sc-if>
+          <sc-if value="{{ menuClosed }}" hint-placeholder-val="{{ true }}">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="#3B2E5A" stroke-width="2.2" stroke-linecap="round" fill="none" />
+          </sc-if>
+        </svg>
+      </button>
+      <a href="#pricing" style="background: #FF9F43; color: #3B2E5A; font-weight: 700; font-size: 15px; padding: 11px 22px; border-radius: 999px; box-shadow: 0 6px 18px rgba(255,159,67,0.42); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-2px); box-shadow: 0 10px 24px rgba(255,159,67,0.55); color: #3B2E5A;">Get started</a>
+    </nav>
+    <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+      <div id="ozz-mobile-menu" style="border-top: 1px solid rgba(59,46,90,0.08); background: #FDF4F1; padding: 8px 22px 16px; animation: ozzRise .22s ease both;">
+        <a href="#how" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 48px; font-size: 16.5px; font-weight: 500; color: #5A4A7D; border-bottom: 1px solid rgba(59,46,90,0.06);">How it works</a>
+        <a href="#vibe" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 48px; font-size: 16.5px; font-weight: 500; color: #5A4A7D; border-bottom: 1px solid rgba(59,46,90,0.06);">The vibe</a>
+        <a href="#pricing" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 48px; font-size: 16.5px; font-weight: 500; color: #5A4A7D; border-bottom: 1px solid rgba(59,46,90,0.06);">Pricing</a>
+        <a href="#faq" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 48px; font-size: 16.5px; font-weight: 500; color: #5A4A7D;">FAQ</a>
+      </div>
+    </sc-if>
+  </header>
+
+  <section id="top" style="max-width: 1180px; margin: 0 auto; padding: 64px 22px 84px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 56px; align-items: center;">
+    <div>
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(111,156,92,0.14); color: #3F5D33; font-size: 13.5px; font-weight: 700; padding: 8px 15px; border-radius: 999px; margin-bottom: 26px;">
+        <span style="width: 7px; height: 7px; border-radius: 999px; background: #6F9C5C;"></span>Built for GLP-1 journeys
+      </div>
+      <h1 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(42px, 5.6vw, 68px); line-height: 1.03; letter-spacing: -0.02em; margin: 0 0 22px; color: #3B2E5A;">Losing weight shouldn't mean losing <span style="color: #E5851A;">you.</span></h1>
+      <p style="font-size: 19px; line-height: 1.6; color: #5A4A7D; margin: 0 0 34px; max-width: 34em;">Ozzily texts you every day — protein reminders, workout check-ins, real encouragement — so you keep your strength through the whole journey.</p>
+      <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 38px;">
+        <a href="#pricing" style="background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 20px; padding: 17px 32px; border-radius: 999px; box-shadow: 0 12px 30px rgba(255,159,67,0.45); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-3px); box-shadow: 0 16px 38px rgba(255,159,67,0.6); color: #3B2E5A;">Text your Ozzily</a>
+        <span style="font-size: 14.5px; font-weight: 500; color: #6B5D8A; line-height: 1.4;">No app. Just text.</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+        <div style="display: flex;">
+          <span style="width: 38px; height: 38px; border-radius: 999px; border: 3px solid #FDF4F1; background: linear-gradient(140deg,#FFC170,#F1801F);"></span>
+          <span style="width: 38px; height: 38px; border-radius: 999px; border: 3px solid #FDF4F1; background: linear-gradient(140deg,#9BC48A,#6F9C5C); margin-left: -13px;"></span>
+          <span style="width: 38px; height: 38px; border-radius: 999px; border: 3px solid #FDF4F1; background: linear-gradient(140deg,#8E7BBF,#5A4A7D); margin-left: -13px;"></span>
+          <span style="width: 38px; height: 38px; border-radius: 999px; border: 3px solid #FDF4F1; background: linear-gradient(140deg,#F7A9A0,#E0736B); margin-left: -13px;"></span>
+        </div>
+        <span style="font-size: 14.5px; font-weight: 500; color: #6B5D8A; max-width: 22em;">Building alongside GLP-1 users protecting their strength</span>
+      </div>
+    </div>
+
+    <div style="position: relative; display: flex; justify-content: center; padding: 10px 0 10px 44px;">
+      <div style="position: absolute; left: 0; bottom: 54px; z-index: 3; animation: ozzBob 6.5s ease-in-out infinite;">
+        <div style="position: relative;">
+          <div style="position: absolute; inset: 12px 6px -6px 6px; background: radial-gradient(circle, rgba(255,159,67,0.45), transparent 68%); filter: blur(12px); animation: ozzGlow 6.5s ease-in-out infinite;"></div>
+          <svg viewBox="0 -22 120 138" width="112" height="128" role="img" aria-label="Ozzily, a friendly rounded mascot with a sprout on its head">
+            <defs>
+              <linearGradient id="ozzHero" x1="0.1" y1="0" x2="0.9" y2="1">
+                <stop offset="0" stop-color="#FFD08F"></stop><stop offset="0.5" stop-color="#FF9F43"></stop><stop offset="1" stop-color="#EE7A17"></stop>
+              </linearGradient>
+            </defs>
+            <path d="M63 -18 C60 -8 57 -2 60 6" stroke="#6F9C5C" stroke-width="6" stroke-linecap="round" fill="none"></path>
+            <ellipse cx="74" cy="-12" rx="11" ry="6" fill="#6F9C5C" transform="rotate(-20 74 -12)"></ellipse>
+            <ellipse cx="48" cy="-6" rx="8" ry="4.5" fill="#87B471" transform="rotate(22 48 -6)"></ellipse>
+            <path d="M60 6 C91 5 112 28 113 57 C114 88 91 111 58 110 C27 109 7 86 8 56 C9 27 32 7 60 6 Z" fill="url(#ozzHero)"></path>
+            <path d="M28 34 C36 20 52 13 64 14 C50 18 38 25 28 34 Z" fill="#FFFDF9" opacity="0.35"></path>
+            <g style="transform-origin: 45px 56px; animation: ozzBlink 4.5s ease-in-out infinite;">
+              <ellipse cx="45" cy="56" rx="11.5" ry="15" fill="#FFFDF9"></ellipse>
+              <circle cx="46.5" cy="59" r="5.4" fill="#3B2E5A"></circle>
+              <circle cx="44" cy="55" r="1.9" fill="#FFFDF9"></circle>
+            </g>
+            <g style="transform-origin: 78px 56px; animation: ozzBlink 4.5s ease-in-out infinite;">
+              <ellipse cx="78" cy="56" rx="11.5" ry="15" fill="#FFFDF9"></ellipse>
+              <circle cx="79.5" cy="59" r="5.4" fill="#3B2E5A"></circle>
+              <circle cx="77" cy="55" r="1.9" fill="#FFFDF9"></circle>
+            </g>
+            <ellipse cx="28" cy="79" rx="8.5" ry="5" fill="#F4736B" opacity="0.34"></ellipse>
+            <ellipse cx="95" cy="79" rx="8.5" ry="5" fill="#F4736B" opacity="0.34"></ellipse>
+            <path d="M53 80 Q61.5 89 70 80" stroke="#3B2E5A" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.75"></path>
+          </svg>
+        </div>
+      </div>
+
+      <div style="position: relative; z-index: 2; width: 100%; max-width: 340px; background: #3B2E5A; border-radius: 44px; padding: 12px; box-shadow: 0 32px 70px rgba(59,46,90,0.28), 0 6px 16px rgba(59,46,90,0.14);">
+        <div style="background: #FFFDF9; border-radius: 34px; overflow: hidden; display: flex; flex-direction: column; min-height: 520px;">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 16px 18px 14px; border-bottom: 1px solid rgba(59,46,90,0.08); background: #FDF4F1;">
+            <span style="width: 34px; height: 34px; border-radius: 999px; background: linear-gradient(140deg,#FFC170,#F1801F); display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', cursive; font-weight: 800; color: #FFFDF9; font-size: 17px;">O</span>
+            <span style="display: flex; flex-direction: column;">
+              <span style="font-weight: 700; font-size: 15px; color: #3B2E5A;">Ozzily</span>
+              <span style="font-size: 12px; color: #6F9C5C; font-weight: 600;">Active now</span>
+            </span>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 18px 16px;">
+            <sc-for list="{{ visible }}" as="m" hint-placeholder-count="3">
+              <sc-if value="{{ m.isOzzy }}" hint-placeholder-val="{{ true }}">
+                <div style="align-self: flex-start; max-width: 82%; background: #FFF1DE; color: #3B2E5A; font-size: 14.5px; line-height: 1.5; padding: 12px 15px; border-radius: 20px 20px 20px 6px; box-shadow: 0 3px 10px rgba(59,46,90,0.07); animation: ozzRise .45s ease both;">{{ m.text }}</div>
+              </sc-if>
+              <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+                <div style="align-self: flex-end; max-width: 82%; background: #3B2E5A; color: #FFF8EF; font-size: 14.5px; line-height: 1.5; padding: 12px 15px; border-radius: 20px 20px 6px 20px; animation: ozzRise .45s ease both;">{{ m.text }}</div>
+              </sc-if>
+            </sc-for>
+            <sc-if value="{{ typing }}" hint-placeholder-val="{{ true }}">
+              <div style="align-self: flex-start; display: flex; gap: 5px; align-items: center; background: #FFF1DE; padding: 14px 16px; border-radius: 20px 20px 20px 6px;">
+                <span style="width: 7px; height: 7px; border-radius: 999px; background: #C08A3E; animation: ozzDot 1.2s infinite;"></span>
+                <span style="width: 7px; height: 7px; border-radius: 999px; background: #C08A3E; animation: ozzDot 1.2s .18s infinite;"></span>
+                <span style="width: 7px; height: 7px; border-radius: 999px; background: #C08A3E; animation: ozzDot 1.2s .36s infinite;"></span>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 12px 16px 18px;">
+            <span style="flex: 1; background: #FDF4F1; border: 1px solid rgba(59,46,90,0.12); border-radius: 999px; padding: 11px 16px; font-size: 14px; color: #A093BC;">Text Ozzily…</span>
+            <span style="width: 38px; height: 38px; border-radius: 999px; background: #FF9F43; display: flex; align-items: center; justify-content: center;">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12h13M12 6l6 6-6 6" stroke="#3B2E5A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background: #3B2E5A; padding: 76px 22px;">
+    <div style="max-width: 780px; margin: 0 auto; text-align: center;">
+      <div style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(64px, 11vw, 118px); line-height: 1; color: #FF9F43; letter-spacing: -0.03em;">30–40%</div>
+      <p style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: clamp(22px, 3vw, 34px); line-height: 1.25; color: #FFFDF9; margin: 14px 0 18px;">of the weight lost on GLP-1s can be muscle, not fat.</p>
+      <p style="font-size: 17.5px; line-height: 1.65; color: rgba(255,253,249,0.72); margin: 0;">Ozzily keeps that from happening. Daily protein nudges and workout check-ins make sure the weight you lose is the weight you meant to lose.</p>
+    </div>
+  </section>
+
+  <section id="how" style="max-width: 1180px; margin: 0 auto; padding: 96px 22px 40px;">
+    <h2 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(34px, 4.4vw, 50px); line-height: 1.08; margin: 0 0 12px; color: #3B2E5A;">How it works</h2>
+    <p style="font-size: 18px; color: #5A4A7D; margin: 0 0 48px; max-width: 30em;">No app to open, no dashboard to maintain. Just texts, the way you already talk to people.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 22px;">
+      <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 26px; padding: 30px 26px 32px; box-shadow: 0 10px 28px rgba(59,46,90,0.06);">
+        <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 999px; background: #FFF1DE; color: #C97614; font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 21px; margin-bottom: 18px;">1</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; margin: 0 0 9px; color: #3B2E5A;">Tell Ozzily your goals</h3>
+        <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0;">Your medication, protein target, and which days you plan to train.</p>
+      </div>
+      <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 26px; padding: 30px 26px 32px; box-shadow: 0 10px 28px rgba(59,46,90,0.06);">
+        <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 999px; background: #E8F0E2; color: #4F7540; font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 21px; margin-bottom: 18px;">2</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; margin: 0 0 9px; color: #3B2E5A;">Get daily check-ins</h3>
+        <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0;">Morning, midday, evening. Short texts that fit around your life.</p>
+      </div>
+      <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 26px; padding: 30px 26px 32px; box-shadow: 0 10px 28px rgba(59,46,90,0.06);">
+        <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 999px; background: #FFF1DE; color: #C97614; font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 21px; margin-bottom: 18px;">3</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; margin: 0 0 9px; color: #3B2E5A;">Send a quick photo</h3>
+        <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0;">Ozzily reads your meals and workouts with vision AI. No logging, no forms.</p>
+      </div>
+      <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 26px; padding: 30px 26px 32px; box-shadow: 0 10px 28px rgba(59,46,90,0.06);">
+        <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 999px; background: #E8F0E2; color: #4F7540; font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 21px; margin-bottom: 18px;">4</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; margin: 0 0 9px; color: #3B2E5A;">Watch your streak grow</h3>
+        <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0;">Real feedback on what's working. Zero judgment on the days it doesn't.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="vibe" style="max-width: 1180px; margin: 0 auto; padding: 80px 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: 54px; align-items: center;">
+    <div>
+      <h2 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(34px, 4.4vw, 50px); line-height: 1.08; margin: 0 0 18px; color: #3B2E5A;">Not a tracker. A friend who's got you.</h2>
+      <p style="font-size: 18px; line-height: 1.65; color: #5A4A7D; margin: 0 0 16px;">Most health apps talk to you like a form you forgot to fill in. Ozzily talks like the friend who remembers you had a rough week and still thinks you're doing great.</p>
+      <p style="font-size: 18px; line-height: 1.65; color: #5A4A7D; margin: 0;">Same information, completely different feeling, and a much better chance you're still doing this in six months.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 26px;">
+      <div>
+        <span style="display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #A093BC; margin-bottom: 12px;">What a typical app sends</span>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="background: #F2EFEA; color: #9A93A8; text-decoration: line-through; font-size: 15px; line-height: 1.5; padding: 13px 17px; border-radius: 18px 18px 18px 6px; max-width: 90%;">You have not logged dinner. Daily goal at risk.</div>
+          <div style="background: #F2EFEA; color: #9A93A8; text-decoration: line-through; font-size: 15px; line-height: 1.5; padding: 13px 17px; border-radius: 18px 18px 18px 6px; max-width: 90%;">Protein: 61/120g. Streak broken. Try again tomorrow.</div>
+        </div>
+      </div>
+      <div>
+        <span style="display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #4F7540; margin-bottom: 12px;">What Ozzily sends</span>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="background: #E8F0E2; color: #33512A; font-size: 15px; line-height: 1.5; padding: 13px 17px; border-radius: 18px 18px 18px 6px; max-width: 92%; box-shadow: 0 4px 14px rgba(111,156,92,0.14);">Appetite gone again tonight? Totally normal on week 3. A shake counts, so let's just get some protein in you.</div>
+          <div style="background: #E8F0E2; color: #33512A; font-size: 15px; line-height: 1.5; padding: 13px 17px; border-radius: 18px 18px 18px 6px; max-width: 92%; box-shadow: 0 4px 14px rgba(111,156,92,0.14);">61g today. Not the number we wanted, but you lifted twice this week, and that's the part that protects your muscle. Tomorrow we aim a little higher.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="max-width: 1080px; margin: 0 auto; padding: 60px 22px 90px; display: flex; flex-direction: column; gap: 30px;">
+    <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 30px; padding: 34px; box-shadow: 0 12px 34px rgba(59,46,90,0.06); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 34px; align-items: center;">
+      <div style="position: relative; min-height: 230px; border-radius: 22px; overflow: hidden; background: radial-gradient(circle at 35% 30%, #FFE7C6, #FFF1DE);">
+        <image-slot id="ozz-meal" shape="rect" placeholder="Click to browse or drop an image"></image-slot>
+      </div>
+      <div>
+        <span style="display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #C97614; margin-bottom: 10px;">Photo verification</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 27px; line-height: 1.15; margin: 0 0 10px; color: #3B2E5A;">Snap it. Ozzily figures out the rest.</h3>
+        <p style="font-size: 16.5px; line-height: 1.62; color: #5A4A7D; margin: 0;">Vision AI reads your plate and estimates protein in seconds, and reads your gym selfie or watch screen to confirm the session counted. No weighing, no searching a food database at 9pm.</p>
+      </div>
+    </div>
+
+    <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 30px; padding: 34px; box-shadow: 0 12px 34px rgba(59,46,90,0.06); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 34px; align-items: center;">
+      <div>
+        <span style="display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #4F7540; margin-bottom: 10px;">Streaks that mean something</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 27px; line-height: 1.15; margin: 0 0 10px; color: #3B2E5A;">Momentum you can feel in your texts.</h3>
+        <p style="font-size: 16.5px; line-height: 1.62; color: #5A4A7D; margin: 0;">Hit your protein and your lifts, and Ozzily keeps count out loud. Miss a day and the streak bends instead of resetting to zero.</p>
+      </div>
+      <div style="position: relative; min-height: 230px; border-radius: 22px; overflow: hidden; background: radial-gradient(circle at 65% 30%, #DDEBD3, #E8F0E2);">
+        <image-slot id="ozz-streak" shape="rect" placeholder="Click to browse or drop an image"></image-slot>
+      </div>
+    </div>
+
+    <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 30px; padding: 34px; box-shadow: 0 12px 34px rgba(59,46,90,0.06); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 34px; align-items: center;">
+      <div style="position: relative; min-height: 230px; border-radius: 22px; overflow: hidden; background: radial-gradient(circle at 35% 30%, #FFE7C6, #FFF1DE);">
+        <image-slot id="ozz-sideeffects" shape="rect" placeholder="Click to browse or drop an image"></image-slot>
+      </div>
+      <div>
+        <span style="display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #C97614; margin-bottom: 10px;">Side-effect support</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 27px; line-height: 1.15; margin: 0 0 10px; color: #3B2E5A;">For the days the medication wins.</h3>
+        <p style="font-size: 16.5px; line-height: 1.62; color: #5A4A7D; margin: 0;">Nausea, sluggish digestion, dehydration, the sudden 4pm exhaustion. Text Ozzily what's happening and get practical, gentle adjustments, plus a nudge to call your prescriber when that's the right answer.</p>
+      </div>
+    </div>
+
+    <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.07); border-radius: 30px; padding: 34px; box-shadow: 0 12px 34px rgba(59,46,90,0.06); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 34px; align-items: center;">
+      <div>
+        <span style="display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #4F7540; margin-bottom: 10px;">The intensity dial</span>
+        <h3 style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 27px; line-height: 1.15; margin: 0 0 10px; color: #3B2E5A;">Text "chill" or "intense" anytime.</h3>
+        <p style="font-size: 16.5px; line-height: 1.62; color: #5A4A7D; margin: 0 0 16px;">You set the temperature. Vacation week? Say chill and Ozzily backs off to one soft check-in. Training for something? Say intense and it gets specific and checks in more often.</p>
+        <div style="display: flex; gap: 9px; flex-wrap: wrap;">
+          <span style="background: #E8F0E2; color: #33512A; font-size: 14px; font-weight: 600; padding: 8px 15px; border-radius: 999px;">chill</span>
+          <span style="background: #FFF1DE; color: #C97614; font-size: 14px; font-weight: 600; padding: 8px 15px; border-radius: 999px;">steady</span>
+          <span style="background: #3B2E5A; color: #FFF8EF; font-size: 14px; font-weight: 600; padding: 8px 15px; border-radius: 999px;">intense</span>
+        </div>
+      </div>
+      <div style="position: relative; min-height: 230px; border-radius: 22px; overflow: hidden; background: radial-gradient(circle at 65% 30%, #DDEBD3, #E8F0E2);">
+        <image-slot id="ozz-intensity" shape="rect" placeholder="Click to browse or drop an image"></image-slot>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing" style="max-width: 1000px; margin: 0 auto; padding: 40px 22px 96px;">
+    <div style="text-align: center; margin-bottom: 46px;">
+      <h2 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(34px, 4.4vw, 50px); line-height: 1.08; margin: 0 0 12px; color: #3B2E5A;">One price. Every day covered.</h2>
+      <p style="font-size: 18px; color: #5A4A7D; margin: 0 0 16px;">Three days free — no credit card required. Cancel by text, any time.</p>
+      <p style="font-size: 15px; color: #6B5D8A; margin: 0 auto 8px; max-width: 34em;">Less than a week of what you're already spending on your prescription.</p>
+      <p style="font-size: 14px; color: #6B5D8A; margin: 0 auto; max-width: 38em;">Every plan includes daily check-ins, photo verification, and streak tracking — no feature differences between Monthly and Annual.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); gap: 26px; align-items: start;">
+      <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.1); border-radius: 30px; padding: 36px 32px; box-shadow: 0 10px 28px rgba(59,46,90,0.06);">
+        <span style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 20px; color: #5A4A7D;">Monthly</span>
+        <div style="display: flex; align-items: baseline; gap: 6px; margin: 14px 0 8px;">
+          <span style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 54px; line-height: 1; color: #3B2E5A;">$29</span>
+          <span style="font-size: 16px; font-weight: 600; color: #6B5D8A;">/mo</span>
+        </div>
+        <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0 0 16px;">Month to month, no commitment. Perfect if you're still finding your rhythm.</p>
+        <p style="font-size: 14px; line-height: 1.55; color: #6B5D8A; margin: 0 0 18px;">Free for 3 days, then $29/mo. Cancel by text any time — cancelling stops future billing immediately, no prorated refunds on the current period.</p>
+        <a href="#top" style="display: block; text-align: center; background: #FFF1DE; color: #C97614; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 15px; border-radius: 999px; transition: background .18s ease;" style-hover="background: #FFE7C6; color: #C97614;">Start free trial</a>
+      </div>
+      <div style="position: relative; background: #FFFDF9; border: 2px solid #FF9F43; border-radius: 30px; padding: 36px 32px; box-shadow: 0 22px 50px rgba(255,159,67,0.28);">
+        <span style="position: absolute; top: -15px; left: 32px; background: #4A7239; color: #FFFDF9; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; padding: 7px 15px; border-radius: 999px;">Save $99 (28%)</span>
+        <span style="font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 20px; color: #C97614;">Annual</span>
+        <div style="display: flex; align-items: baseline; gap: 6px; margin: 14px 0 8px;">
+          <span style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 54px; line-height: 1; color: #3B2E5A;">$249</span>
+          <span style="font-size: 16px; font-weight: 600; color: #6B5D8A;">/yr</span>
+        </div>
+        <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0 0 16px;">Works out to $20.75/mo, about three months free.</p>
+        <p style="font-size: 14px; line-height: 1.55; color: #6B5D8A; margin: 0 0 18px;">Free for 3 days, then $249/yr. Cancel by text any time — access continues through the period you've already paid for, no prorated refunds.</p>
+        <a href="#top" style="display: block; text-align: center; background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 15px; border-radius: 999px; box-shadow: 0 10px 24px rgba(255,159,67,0.4); transition: transform .18s ease;" style-hover="transform: translateY(-2px); color: #3B2E5A;">Start free trial</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" style="max-width: 820px; margin: 0 auto; padding: 0 22px 96px;">
+    <h2 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(34px, 4.4vw, 50px); line-height: 1.08; margin: 0 0 38px; color: #3B2E5A; text-align: center;">Questions, answered plainly</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <sc-for list="{{ faqs }}" as="f" hint-placeholder-count="4">
+        <div style="background: #FFFDF9; border: 1px solid rgba(59,46,90,0.08); border-radius: 22px; overflow: hidden; box-shadow: 0 6px 18px rgba(59,46,90,0.05);">
+          <button type="button" onClick="{{ f.onToggle }}" aria-expanded="{{ f.expanded }}" style="width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 18px; text-align: left; background: none; border: 0; cursor: pointer; padding: 22px 26px; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 19.5px; color: #3B2E5A;">
+            {{ f.q }}
+            <sc-if value="{{ f.open }}" hint-placeholder-val="{{ false }}">
+              <span style="flex: none; width: 28px; height: 28px; border-radius: 999px; background: #FF9F43; color: #3B2E5A; display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1;">−</span>
+            </sc-if>
+            <sc-if value="{{ f.closed }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: none; width: 28px; height: 28px; border-radius: 999px; background: #FFF1DE; color: #C97614; display: flex; align-items: center; justify-content: center; font-size: 19px; line-height: 1;">+</span>
+            </sc-if>
+          </button>
+          <sc-if value="{{ f.open }}" hint-placeholder-val="{{ false }}">
+            <p style="margin: 0; padding: 0 26px 24px; font-size: 16.5px; line-height: 1.65; color: #5A4A7D; animation: ozzRise .3s ease both;">{{ f.a }}</p>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding: 0 22px 96px;">
+    <div style="max-width: 1080px; margin: 0 auto; background: linear-gradient(135deg, #FFB25E, #FF9F43 55%, #F1801F); border-radius: 40px; padding: 74px 34px; text-align: center; box-shadow: 0 26px 60px rgba(241,128,31,0.3); position: relative; overflow: hidden;">
+      <svg viewBox="0 -22 120 138" width="86" height="100" aria-hidden="true" style="animation: ozzBob 6.5s ease-in-out infinite; margin-bottom: 8px;">
+        <path d="M63 -18 C60 -8 57 -2 60 6" stroke="#3E6631" stroke-width="6" stroke-linecap="round" fill="none"></path>
+        <ellipse cx="74" cy="-12" rx="11" ry="6" fill="#3E6631" transform="rotate(-20 74 -12)"></ellipse>
+        <path d="M60 6 C91 5 112 28 113 57 C114 88 91 111 58 110 C27 109 7 86 8 56 C9 27 32 7 60 6 Z" fill="#FFFDF9" opacity="0.94"></path>
+        <g style="transform-origin: 45px 56px; animation: ozzBlink 4.5s ease-in-out infinite;">
+          <ellipse cx="45" cy="56" rx="11.5" ry="15" fill="#FFF1DE"></ellipse>
+          <circle cx="46.5" cy="59" r="5.4" fill="#3B2E5A"></circle>
+        </g>
+        <g style="transform-origin: 78px 56px; animation: ozzBlink 4.5s ease-in-out infinite;">
+          <ellipse cx="78" cy="56" rx="11.5" ry="15" fill="#FFF1DE"></ellipse>
+          <circle cx="79.5" cy="59" r="5.4" fill="#3B2E5A"></circle>
+        </g>
+        <ellipse cx="28" cy="79" rx="8.5" ry="5" fill="#F4736B" opacity="0.4"></ellipse>
+        <ellipse cx="95" cy="79" rx="8.5" ry="5" fill="#F4736B" opacity="0.4"></ellipse>
+        <path d="M53 80 Q61.5 89 70 80" stroke="#3B2E5A" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.7"></path>
+      </svg>
+      <h2 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(36px, 5.2vw, 62px); line-height: 1.05; margin: 0 0 16px; color: #3B2E5A;">Your strength is worth protecting.</h2>
+      <p style="font-size: 18.5px; line-height: 1.6; color: #6B4A17; margin: 0 auto 34px; max-width: 30em;">Start with one text today. Ozzily takes it from there. Three days free, cancel whenever.</p>
+      <a href="#top" style="display: inline-block; background: #3B2E5A; color: #FFF8EF; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; padding: 18px 38px; border-radius: 999px; box-shadow: 0 14px 32px rgba(59,46,90,0.32); transition: transform .18s ease;" style-hover="transform: translateY(-3px); color: #FFF8EF;">Text your Ozzily</a>
+    </div>
+  </section>
+
+  <footer style="background: #3B2E5A; padding: 60px 22px 44px;">
+    <div style="max-width: 1080px; margin: 0 auto;">
+      <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: center; justify-content: space-between; padding-bottom: 30px; border-bottom: 1px solid rgba(255,253,249,0.14);">
+        <a href="#top" style="display: flex; align-items: center; gap: 9px; color: #FFF8EF;" style-hover="color: #FF9F43;">
+          <svg viewBox="0 -18 120 134" width="30" height="34" aria-hidden="true">
+            <path d="M62 -14 C60 -6 58 -1 60 6" stroke="#9BC48A" stroke-width="5" stroke-linecap="round" fill="none"></path>
+            <ellipse cx="71" cy="-9" rx="9" ry="5" fill="#9BC48A" transform="rotate(-18 71 -9)"></ellipse>
+            <path d="M60 6 C90 6 111 28 112 56 C113 86 92 110 59 110 C28 110 8 87 9 57 C10 28 32 6 60 6 Z" fill="#FF9F43"></path>
+            <ellipse cx="45" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+            <ellipse cx="78" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+            <circle cx="46" cy="58" r="5" fill="#3B2E5A"></circle>
+            <circle cx="79" cy="58" r="5" fill="#3B2E5A"></circle>
+          </svg>
+          <span style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 25px; color: #FFF8EF;">Ozzily</span>
+        </a>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          <a href="#how" style="font-size: 15px; color: rgba(255,253,249,0.72);" style-hover="color: #FF9F43;">How it works</a>
+          <a href="#vibe" style="font-size: 15px; color: rgba(255,253,249,0.72);" style-hover="color: #FF9F43;">The vibe</a>
+          <a href="#pricing" style="font-size: 15px; color: rgba(255,253,249,0.72);" style-hover="color: #FF9F43;">Pricing</a>
+          <a href="#faq" style="font-size: 15px; color: rgba(255,253,249,0.72);" style-hover="color: #FF9F43;">FAQ</a>
+        </div>
+      </div>
+      <p style="font-size: 13.5px; line-height: 1.65; color: rgba(255,253,249,0.5); margin: 26px 0 0; max-width: 62em;">Ozzily provides lifestyle coaching and encouragement. It is not medical advice, diagnosis, or treatment. Always talk to your prescriber or physician about your medication, dosing, side effects, and nutrition plan. Ozzily is an independent product and is not affiliated with, endorsed by, or sponsored by Novo Nordisk or Eli Lilly. Ozempic, Wegovy, Mounjaro, and Zepbound are trademarks of their respective owners.</p>
+      <p style="font-size: 13.5px; color: rgba(255,253,249,0.4); margin: 18px 0 0;">© 2026 Ozzily</p>
+    </div>
+  </footer>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;chatSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2.5,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Hero chat&quot;},&quot;loopChat&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Hero chat&quot;},&quot;faqOpenFirst&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;FAQ&quot;}}">
+const SCRIPT = [
+  { text: "Morning! Today's goal: 100g protein + a lift session. Snap me your breakfast?", from: "ozzy" },
+  { text: "eggs + greek yogurt", from: "user" },
+  { text: "That's about 32g right there. Add a shake before lunch and you're golden.", from: "ozzy" },
+  { text: "6-day streak, by the way. Don't look now but you're kind of crushing this.", from: "ozzy" }
+];
+
+const FAQS = [
+  { q: "Is Ozzily giving me medical advice?", a: "No. Ozzily is a coaching and encouragement companion. It helps with protein targets, movement, hydration, and staying consistent. It won't advise on dosing, prescriptions, or symptoms, and it will always point you to your prescriber for anything medical." },
+  { q: "What happens when I miss my goals?", a: "Nothing bad. Ozzily notices, asks what got in the way, and adjusts. Your streak bends rather than resetting to zero. The aim is a habit you keep for a year, not a perfect week followed by quitting." },
+  { q: "Which medications does Ozzily support?", a: "All the common GLP-1 and dual-agonist medications — Ozempic, Wegovy, Mounjaro, and Zepbound — plus compounded semaglutide and tirzepatide. Ozzily tailors check-in timing and side-effect support to where you are in your titration." },
+  { q: "How do I cancel?", a: "Text \"cancel\" to Ozzily and you're done. No retention flow, no phone call, no hunting through settings. Your trial is 3 days and you'll never be charged without a heads-up text first." }
+];
+
+class Component extends DCLogic {
+  state = { shown: 0, typing: false, openFaq: null, faqInit: false, menuOpen: false };
+
+  componentDidMount() {
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { this.setState({ shown: SCRIPT.length, typing: false }); }
+    else { this.timers = []; this.play(); }
+    if (this.props.faqOpenFirst !== false) this.setState({ openFaq: 0 });
+  }
+
+  componentWillUnmount() { (this.timers || []).forEach(clearTimeout); }
+
+  wait(ms) {
+    return new Promise(res => { const t = setTimeout(res, ms); (this.timers || []).push(t); });
+  }
+
+  async play() {
+    const speed = Number(this.props.chatSpeed ?? 1) || 1;
+    const k = 1 / speed;
+    await this.wait(500 * k);
+    for (let i = 0; i < SCRIPT.length; i++) {
+      if (SCRIPT[i].from === 'ozzy') {
+        this.setState({ typing: true });
+        await this.wait((900 + SCRIPT[i].text.length * 14) * k);
+      }
+      this.setState(s => ({ shown: i + 1, typing: false }));
+      await this.wait(650 * k);
+    }
+    if (this.props.loopChat) {
+      await this.wait(5200);
+      this.setState({ shown: 0 });
+      await this.wait(600);
+      this.play();
+    }
+  }
+
+  renderVals() {
+    const shown = this.state.shown;
+    return {
+      menuOpen: this.state.menuOpen,
+      menuClosed: !this.state.menuOpen,
+      menuExpanded: this.state.menuOpen ? 'true' : 'false',
+      menuLabel: this.state.menuOpen ? 'Close menu' : 'Open menu',
+      toggleMenu: () => this.setState(s => ({ menuOpen: !s.menuOpen })),
+      closeMenu: () => this.setState({ menuOpen: false }),
+      typing: this.state.typing,
+      visible: SCRIPT.slice(0, shown).map((m, i) => ({
+        text: m.text, isOzzy: m.from === 'ozzy', isUser: m.from === 'user', key: i
+      })),
+      faqs: FAQS.map((f, i) => ({
+        q: f.q, a: f.a,
+        open: this.state.openFaq === i,
+        closed: this.state.openFaq !== i,
+        expanded: this.state.openFaq === i ? 'true' : 'false',
+        onToggle: () => this.setState(s => ({ openFaq: s.openFaq === i ? null : i }))
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

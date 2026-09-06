@@ -77,7 +77,7 @@
           </sc-if>
         </svg>
       </button>
-      <a href="#pricing" style="background: #FF9F43; color: #3B2E5A; font-weight: 700; font-size: 15px; padding: 11px 22px; border-radius: 999px; box-shadow: 0 6px 18px rgba(255,159,67,0.42); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-2px); box-shadow: 0 10px 24px rgba(255,159,67,0.55); color: #3B2E5A;">Get started</a>
+      <a href="#signup" style="background: #FF9F43; color: #3B2E5A; font-weight: 700; font-size: 15px; padding: 11px 22px; border-radius: 999px; box-shadow: 0 6px 18px rgba(255,159,67,0.42); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-2px); box-shadow: 0 10px 24px rgba(255,159,67,0.55); color: #3B2E5A;">Get started</a>
     </nav>
     <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
       <div id="ozz-mobile-menu" style="border-top: 1px solid rgba(59,46,90,0.08); background: #FDF4F1; padding: 8px 22px 16px; animation: ozzRise .22s ease both;">
@@ -96,9 +96,23 @@
       </div>
       <h1 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(42px, 5.6vw, 68px); line-height: 1.03; letter-spacing: -0.02em; margin: 0 0 22px; color: #3B2E5A;">Losing weight shouldn't mean losing <span style="color: #E5851A;">you.</span></h1>
       <p style="font-size: 19px; line-height: 1.6; color: #5A4A7D; margin: 0 0 34px; max-width: 34em;">Ozzily texts you every day — protein reminders, workout check-ins, real encouragement — so you keep your strength through the whole journey.</p>
-      <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 38px;">
-        <a href="#pricing" style="background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 20px; padding: 17px 32px; border-radius: 999px; box-shadow: 0 12px 30px rgba(255,159,67,0.45); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-3px); box-shadow: 0 16px 38px rgba(255,159,67,0.6); color: #3B2E5A;">Text your Ozzily</a>
-        <span style="font-size: 14.5px; font-weight: 500; color: #6B5D8A; line-height: 1.4;">No app. Just text.</span>
+      <div id="signup" style="scroll-margin-top: 100px;">
+        <sc-if value="{{ formSuccess }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; align-items: center; gap: 12px; background: #E8F0E2; border: 1px solid rgba(111,156,92,0.3); border-radius: 18px; padding: 18px 22px; margin-bottom: 38px; max-width: 420px;">
+            <span style="font-size: 22px;">✅</span>
+            <span style="font-size: 15px; font-weight: 600; color: #33512A;">Check your phone — Ozzily is texting you now!</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ formNotSuccess }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+            <input type="tel" inputmode="tel" placeholder="(555) 123-4567" value="{{ phone }}" onChange="{{ onPhoneChange }}" aria-label="Your phone number" style="flex: 1; min-width: 220px; max-width: 280px; padding: 16px 20px; border-radius: 999px; border: 2px solid rgba(59,46,90,0.14); background: #FFFDF9; font-size: 16px; font-family: 'Plus Jakarta Sans', sans-serif; color: #3B2E5A;" />
+            <button type="button" onClick="{{ onSubmit }}" disabled="{{ submitting }}" style="background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 16px 30px; border-radius: 999px; border: none; cursor: pointer; box-shadow: 0 12px 30px rgba(255,159,67,0.45); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-3px); box-shadow: 0 16px 38px rgba(255,159,67,0.6); color: #3B2E5A;">{{ submitLabel }}</button>
+          </div>
+          <sc-if value="{{ formError }}" hint-placeholder-val="{{ false }}">
+            <p style="color: #C24545; font-size: 14px; font-weight: 600; margin: 0 0 12px;">{{ errorMsg }}</p>
+          </sc-if>
+          <span style="font-size: 14.5px; font-weight: 500; color: #6B5D8A; line-height: 1.4;">No app. Just text. Free for 3 days, no card required.</span>
+        </sc-if>
       </div>
       <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
         <div style="display: flex;">
@@ -306,7 +320,7 @@
         </div>
         <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0 0 16px;">Month to month, no commitment. Perfect if you're still finding your rhythm.</p>
         <p style="font-size: 14px; line-height: 1.55; color: #6B5D8A; margin: 0 0 18px;">Free for 3 days, then $29/mo. Cancel by text any time — cancelling stops future billing immediately, no prorated refunds on the current period.</p>
-        <a href="#top" style="display: block; text-align: center; background: #FFF1DE; color: #C97614; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 15px; border-radius: 999px; transition: background .18s ease;" style-hover="background: #FFE7C6; color: #C97614;">Start free trial</a>
+        <a href="#signup" style="display: block; text-align: center; background: #FFF1DE; color: #C97614; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 15px; border-radius: 999px; transition: background .18s ease;" style-hover="background: #FFE7C6; color: #C97614;">Start free trial</a>
       </div>
       <div style="position: relative; background: #FFFDF9; border: 2px solid #FF9F43; border-radius: 30px; padding: 36px 32px; box-shadow: 0 22px 50px rgba(255,159,67,0.28);">
         <span style="position: absolute; top: -15px; left: 32px; background: #4A7239; color: #FFFDF9; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; padding: 7px 15px; border-radius: 999px;">Save $99 (28%)</span>
@@ -317,7 +331,7 @@
         </div>
         <p style="font-size: 15.5px; line-height: 1.6; color: #5A4A7D; margin: 0 0 16px;">Works out to $20.75/mo, about three months free.</p>
         <p style="font-size: 14px; line-height: 1.55; color: #6B5D8A; margin: 0 0 18px;">Free for 3 days, then $249/yr. Cancel by text any time — access continues through the period you've already paid for, no prorated refunds.</p>
-        <a href="#top" style="display: block; text-align: center; background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 15px; border-radius: 999px; box-shadow: 0 10px 24px rgba(255,159,67,0.4); transition: transform .18s ease;" style-hover="transform: translateY(-2px); color: #3B2E5A;">Start free trial</a>
+        <a href="#signup" style="display: block; text-align: center; background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 15px; border-radius: 999px; box-shadow: 0 10px 24px rgba(255,159,67,0.4); transition: transform .18s ease;" style-hover="transform: translateY(-2px); color: #3B2E5A;">Start free trial</a>
       </div>
     </div>
   </section>
@@ -364,7 +378,7 @@
       </svg>
       <h2 style="font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(36px, 5.2vw, 62px); line-height: 1.05; margin: 0 0 16px; color: #3B2E5A;">Your strength is worth protecting.</h2>
       <p style="font-size: 18.5px; line-height: 1.6; color: #6B4A17; margin: 0 auto 34px; max-width: 30em;">Start with one text today. Ozzily takes it from there. Three days free, cancel whenever.</p>
-      <a href="#top" style="display: inline-block; background: #3B2E5A; color: #FFF8EF; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; padding: 18px 38px; border-radius: 999px; box-shadow: 0 14px 32px rgba(59,46,90,0.32); transition: transform .18s ease;" style-hover="transform: translateY(-3px); color: #FFF8EF;">Text your Ozzily</a>
+      <a href="#signup" style="display: inline-block; background: #3B2E5A; color: #FFF8EF; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 21px; padding: 18px 38px; border-radius: 999px; box-shadow: 0 14px 32px rgba(59,46,90,0.32); transition: transform .18s ease;" style-hover="transform: translateY(-3px); color: #FFF8EF;">Text your Ozzily</a>
     </div>
   </section>
 
@@ -413,7 +427,30 @@ const FAQS = [
 ];
 
 class Component extends DCLogic {
-  state = { shown: 0, typing: false, openFaq: null, faqInit: false, menuOpen: false };
+  state = { shown: 0, typing: false, openFaq: null, faqInit: false, menuOpen: false, phone: '', submitting: false, success: false, error: '' };
+
+  onPhoneChange = (e) => this.setState({ phone: e.target.value, error: '' });
+
+  onSubmit = async () => {
+    const digits = (this.state.phone || '').replace(/\D/g, '');
+    const tenDigit = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+    if (tenDigit.length !== 10) {
+      this.setState({ error: 'That doesn\'t look like a valid US phone number.' });
+      return;
+    }
+    this.setState({ submitting: true, error: '' });
+    try {
+      const resp = await fetch('https://hook.us2.make.com/sis2d2ovkqo12tyys29r8xkbvcw7v7en', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: '+1' + tenDigit, source: 'landing_page', page_url: window.location.href })
+      });
+      if (!resp.ok) throw new Error('Request failed');
+      this.setState({ submitting: false, success: true });
+    } catch (err) {
+      this.setState({ submitting: false, error: 'Something went wrong on our end — mind trying again in a moment?' });
+    }
+  };
 
   componentDidMount() {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -457,6 +494,15 @@ class Component extends DCLogic {
       menuLabel: this.state.menuOpen ? 'Close menu' : 'Open menu',
       toggleMenu: () => this.setState(s => ({ menuOpen: !s.menuOpen })),
       closeMenu: () => this.setState({ menuOpen: false }),
+      phone: this.state.phone,
+      onPhoneChange: this.onPhoneChange,
+      onSubmit: this.onSubmit,
+      submitting: this.state.submitting,
+      submitLabel: this.state.submitting ? 'Sending…' : 'Text me',
+      formError: !!this.state.error,
+      errorMsg: this.state.error,
+      formSuccess: this.state.success,
+      formNotSuccess: !this.state.success,
       typing: this.state.typing,
       visible: SCRIPT.slice(0, shown).map((m, i) => ({
         text: m.text, isOzzy: m.from === 'ozzy', isUser: m.from === 'user', key: i

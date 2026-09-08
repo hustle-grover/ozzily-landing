@@ -432,10 +432,21 @@ class Component extends DCLogic {
   onPhoneChange = (e) => this.setState({ phone: e.target.value, error: '' });
 
   onSubmit = async () => {
-    const digits = (this.state.phone || '').replace(/\D/g, '');
-    const tenDigit = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
-    if (tenDigit.length !== 10) {
-      this.setState({ error: 'That doesn\'t look like a valid US phone number.' });
+    const raw = (this.state.phone || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    let e164 = null;
+
+    if (raw.startsWith('+') && digits.length >= 8 && digits.length <= 15) {
+      // Explicit international format — respect exactly what was typed.
+      e164 = '+' + digits;
+    } else {
+      // Default path: assume US, 10 digits (or 11 starting with 1).
+      const tenDigit = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+      if (tenDigit.length === 10) e164 = '+1' + tenDigit;
+    }
+
+    if (!e164) {
+      this.setState({ error: 'Enter a 10-digit US number, or include your country code (e.g. +91...).' });
       return;
     }
     this.setState({ submitting: true, error: '' });
@@ -443,7 +454,7 @@ class Component extends DCLogic {
       const resp = await fetch('https://hook.us2.make.com/sis2d2ovkqo12tyys29r8xkbvcw7v7en', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: '+1' + tenDigit, source: 'landing_page', page_url: window.location.href })
+        body: JSON.stringify({ phone: e164, source: 'landing_page', page_url: window.location.href })
       });
       if (!resp.ok) throw new Error('Request failed');
       this.setState({ submitting: false, success: true });

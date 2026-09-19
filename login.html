@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in — Ozzily</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html { scroll-behavior: smooth; }
+  body { margin:0; min-height:100vh; background:#FDF4F1; color:#3B2E5A; font-family:'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing:antialiased; display:flex; flex-direction:column; }
+  * { box-sizing:border-box; }
+  a { color:#C97614; text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  :focus-visible { outline:3px solid #C97614; outline-offset:3px; border-radius:8px; }
+  @keyframes ozzBob { 0%,100% { transform:translateY(0) rotate(-1deg); } 50% { transform:translateY(-10px) rotate(1.5deg); } }
+  @keyframes ozzRise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+  header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; max-width:1000px; margin:0 auto; width:100%; }
+  .logo { display:flex; align-items:center; gap:9px; font-family:'Baloo 2', cursive; font-weight:800; font-size:22px; color:#3B2E5A; }
+  .logo-badge { width:28px; height:28px; border-radius:999px; background:linear-gradient(140deg,#FFC170,#F1801F); }
+  .top-cta { font-size:14.5px; font-weight:600; color:#5A4A7D; }
+
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:24px 22px 72px; }
+  .card { width:100%; max-width:440px; animation:ozzRise .4s ease both; }
+  .mascot { width:64px; height:72px; margin-bottom:22px; animation:ozzBob 6.5s ease-in-out infinite; overflow:visible; }
+  h1 { font-family:'Baloo 2', cursive; font-weight:800; font-size:clamp(38px,7vw,52px); line-height:1.04; letter-spacing:-0.02em; margin:0 0 14px; color:#3B2E5A; }
+  .sub { font-size:17px; line-height:1.55; color:#5A4A7D; margin:0 0 30px; max-width:26em; }
+
+  form { display:flex; align-items:center; gap:10px; }
+  .field { flex:1; display:flex; align-items:center; gap:10px; background:#FFFDF9; border:2px solid rgba(59,46,90,0.14); border-radius:999px; padding:4px 6px 4px 16px; min-width:0; }
+  .field:focus-within { border-color:#FF9F43; }
+  .prefix { display:flex; align-items:center; gap:6px; font-size:16px; font-weight:600; color:#5A4A7D; white-space:nowrap; padding-right:10px; border-right:1px solid rgba(59,46,90,0.12); }
+  .field input { flex:1; min-width:0; border:none; outline:none; background:transparent; font-size:16px; font-family:'Plus Jakarta Sans', sans-serif; color:#3B2E5A; padding:12px 4px; }
+  .go { flex:none; width:52px; height:52px; border-radius:999px; border:none; background:#FF9F43; color:#3B2E5A; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(255,159,67,0.42); transition:transform .18s ease, box-shadow .18s ease; }
+  .go:hover { transform:translateY(-2px); box-shadow:0 14px 30px rgba(255,159,67,0.55); }
+  .go:disabled { opacity:0.6; cursor:default; transform:none; box-shadow:none; }
+
+  .msg { min-height:20px; font-size:14px; font-weight:600; margin:14px 2px 0; }
+  .msg.error { color:#C24545; }
+  .helper { font-size:14.5px; color:#6B5D8A; margin:22px 2px 0; }
+  .helper a { color:#5A4A7D; text-decoration:underline; }
+
+  .success { display:none; align-items:flex-start; gap:12px; background:#E8F0E2; border:1px solid rgba(111,156,92,0.3); border-radius:20px; padding:20px 22px; }
+  .success.show { display:flex; }
+  .success span.tick { font-size:22px; line-height:1; }
+  .success p { margin:0; font-size:15.5px; font-weight:600; color:#33512A; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo"><span class="logo-badge"></span>Ozzily</a>
+  <a href="index.html#signup" class="top-cta">New to Ozzily? Get started →</a>
+</header>
+
+<main>
+  <div class="card">
+    <svg class="mascot" viewBox="0 -18 120 134" role="img" aria-label="Ozzily mascot">
+      <defs>
+        <linearGradient id="ozzL" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FFC170"></stop><stop offset="0.55" stop-color="#FF9F43"></stop><stop offset="1" stop-color="#F1801F"></stop>
+        </linearGradient>
+      </defs>
+      <path d="M62 -14 C60 -6 58 -1 60 6" stroke="#6F9C5C" stroke-width="5" stroke-linecap="round" fill="none"></path>
+      <ellipse cx="71" cy="-9" rx="9" ry="5" fill="#6F9C5C" transform="rotate(-18 71 -9)"></ellipse>
+      <path d="M60 6 C90 6 111 28 112 56 C113 86 92 110 59 110 C28 110 8 87 9 57 C10 28 32 6 60 6 Z" fill="url(#ozzL)"></path>
+      <ellipse cx="45" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+      <ellipse cx="78" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+      <circle cx="46" cy="58" r="5" fill="#3B2E5A"></circle>
+      <circle cx="79" cy="58" r="5" fill="#3B2E5A"></circle>
+      <ellipse cx="30" cy="78" rx="7" ry="4" fill="#F4736B" opacity="0.35"></ellipse>
+      <ellipse cx="93" cy="78" rx="7" ry="4" fill="#F4736B" opacity="0.35"></ellipse>
+      <path d="M53 80 Q61.5 88 70 80" stroke="#3B2E5A" stroke-width="3.4" stroke-linecap="round" fill="none" opacity="0.7"></path>
+    </svg>
+
+    <div id="loginView">
+      <h1>Welcome back.</h1>
+      <p class="sub">Log in with the phone number you texted Ozzily with.</p>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <span class="prefix" aria-hidden="true"><svg width="20" height="14" viewBox="0 0 20 14" style="border-radius:2px; flex:none; box-shadow:0 0 0 1px rgba(59,46,90,0.1);"><rect width="20" height="14" fill="#B22234"></rect><rect y="2" width="20" height="2" fill="#fff"></rect><rect y="6" width="20" height="2" fill="#fff"></rect><rect y="10" width="20" height="2" fill="#fff"></rect><rect width="9" height="8" fill="#3C3B6E"></rect></svg>+1</span>
+          <input type="tel" id="phone" inputmode="tel" placeholder="(555) 123-4567" aria-label="Your phone number" autocomplete="tel" />
+        </div>
+        <button type="submit" class="go" id="go" aria-label="Continue">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12h13M12 6l6 6-6 6" stroke="#3B2E5A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+        </button>
+      </form>
+      <p class="msg error" id="msg" role="alert" aria-live="polite"></p>
+      <p class="helper">Trouble logging in? Just text <strong>HELP</strong> to Ozzily and we'll sort it out.</p>
+    </div>
+
+    <div class="success" id="successView" role="status" aria-live="polite">
+      <span class="tick">✅</span>
+      <p>Check your phone — Ozzily just texted you. Reply right there to pick up where you left off.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  // Make.com "Ozzily Login" scenario (id 6333754): looks up the number and texts
+  // "welcome back" if found, or a sign-up nudge if not. Turn the scenario ON in Make
+  // for this to send. If left empty, the page still shows the confirmation UI.
+  const LOGIN_WEBHOOK_URL = 'https://hook.us2.make.com/k9upww5gdjleabl7v72cf1fotikcssz1';
+
+  const form = document.getElementById('loginForm');
+  const input = document.getElementById('phone');
+  const msg = document.getElementById('msg');
+  const go = document.getElementById('go');
+  const loginView = document.getElementById('loginView');
+  const successView = document.getElementById('successView');
+
+  function normalize(raw) {
+    raw = (raw || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    if (raw.startsWith('+') && digits.length >= 8 && digits.length <= 15) return '+' + digits;
+    const ten = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+    if (ten.length === 10) return '+1' + ten;
+    return null;
+  }
+
+  input.addEventListener('input', () => { msg.textContent = ''; });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const e164 = normalize(input.value);
+    if (!e164) {
+      msg.textContent = 'Enter a 10-digit US number, or include your country code (e.g. +91…).';
+      return;
+    }
+    go.disabled = true;
+    try {
+      if (LOGIN_WEBHOOK_URL) {
+        const resp = await fetch(LOGIN_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: e164, source: 'login_page', page_url: window.location.href })
+        });
+        if (!resp.ok) throw new Error('Request failed');
+      }
+      loginView.style.display = 'none';
+      successView.classList.add('show');
+    } catch (err) {
+      go.disabled = false;
+      msg.textContent = 'Something went wrong on our end — mind trying again in a moment?';
+    }
+  });
+</script>
+
+</body>
+</html>

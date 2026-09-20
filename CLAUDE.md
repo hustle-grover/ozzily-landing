@@ -70,6 +70,25 @@ generic AI-startup-template aesthetics.
 - Use `get_advisors` for iterative security hardening after any migration.
 - Ship over tooling overhead: the landing page was deployed as a straight HTML/
   Vercel prototype rather than building it in Framer — bias toward shipping.
+- **Claude `/v1/messages` can return a leading `thinking` content block** (Sonnet 5
+  started doing this Sep 2026, breaking the AI Brain with zero config changes). The
+  response `content` becomes `[thinking, text]`, and Make's `map(content;"text")`
+  keeps the empty thinking slot — so a fixed index grabs the wrong/empty element.
+  **Never extract a fixed content index; always `join(map(7.content; "text"); "")`**
+  to concatenate all text blocks (the empty thinking slot adds nothing). Symptom was
+  `Source is not valid JSON` / `Missing value of required parameter 'json'` at the
+  Parse JSON step, which auto-disabled the whole scenario.
+- **The Make API cannot show per-module input/output** — only the Make UI can. To
+  debug a scenario remotely, capture the raw value (e.g. `{{6.data}}`) into a temp
+  Supabase table and read it back, or ask for the failing module's bundle from the UI.
+- **Give the AI Brain an error-fallback.** A single bad/changed LLM response used to
+  crash the run and trip Make's error limit, disabling the engine. The parse step now
+  has an `onerror` → Twilio SendSMS fallback ("mind sending that again?") so one bad
+  message can't take the whole scenario down.
+- **Stay on Claude Sonnet 5 for the AI Brain**, not Haiku. Haiku 4.5 made digit-copying
+  errors on the protein math (the reason for the original Sonnet upgrade). Parser/
+  plumbing fixes are model-agnostic, so a model swap won't fix bugs — only trade math
+  reliability for cost. Revisit Haiku only if cost bites at scale, and re-test arithmetic.
 
 ## How Pankaj wants this worked
 

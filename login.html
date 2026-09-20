@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in — Ozzily</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html { scroll-behavior: smooth; }
+  body { margin:0; min-height:100vh; background:#FDF4F1; color:#3B2E5A; font-family:'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing:antialiased; display:flex; flex-direction:column; }
+  * { box-sizing:border-box; }
+  a { color:#C97614; text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  :focus-visible { outline:3px solid #C97614; outline-offset:3px; border-radius:8px; }
+  @keyframes ozzBob { 0%,100% { transform:translateY(0) rotate(-1deg); } 50% { transform:translateY(-10px) rotate(1.5deg); } }
+  @keyframes ozzRise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+  header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; max-width:1000px; margin:0 auto; width:100%; }
+  .logo { display:flex; align-items:center; gap:9px; font-family:'Baloo 2', cursive; font-weight:800; font-size:22px; color:#3B2E5A; }
+  .logo-badge { width:28px; height:28px; border-radius:999px; background:linear-gradient(140deg,#FFC170,#F1801F); }
+  .top-cta { font-size:14.5px; font-weight:600; color:#5A4A7D; }
+
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:24px 22px 72px; }
+  .card { width:100%; max-width:440px; animation:ozzRise .4s ease both; }
+  .mascot { width:64px; height:72px; margin-bottom:22px; animation:ozzBob 6.5s ease-in-out infinite; overflow:visible; }
+  h1 { font-family:'Baloo 2', cursive; font-weight:800; font-size:clamp(38px,7vw,52px); line-height:1.04; letter-spacing:-0.02em; margin:0 0 14px; color:#3B2E5A; }
+  .sub { font-size:17px; line-height:1.55; color:#5A4A7D; margin:0 0 30px; max-width:26em; }
+
+  form { display:flex; align-items:center; gap:10px; }
+  .field { flex:1; display:flex; align-items:center; gap:10px; background:#FFFDF9; border:2px solid rgba(59,46,90,0.14); border-radius:999px; padding:4px 6px 4px 16px; min-width:0; }
+  .field:focus-within { border-color:#FF9F43; }
+  .cc { position:relative; flex:none; }
+  .cc-btn { display:flex; align-items:center; gap:7px; background:transparent; border:none; cursor:pointer; padding:12px 10px 12px 2px; margin-right:2px; border-right:1px solid rgba(59,46,90,0.12); font-family:'Plus Jakarta Sans', sans-serif; }
+  .cc-flag { width:24px; height:18px; border-radius:3px; object-fit:cover; box-shadow:0 0 0 1px rgba(59,46,90,0.1); background:#eee; display:block; }
+  .cc-dial { font-size:15px; font-weight:600; color:#5A4A7D; }
+  .cc-chev { width:14px; height:14px; }
+  .cc-panel { position:absolute; top:calc(100% + 12px); left:-10px; z-index:30; width:310px; max-width:80vw; background:#FFFDF9; border:1px solid rgba(59,46,90,0.14); border-radius:18px; box-shadow:0 20px 48px rgba(59,46,90,0.2); padding:10px; }
+  .cc-panel[hidden] { display:none; }
+  .cc-search { width:100%; border:1.5px solid rgba(59,46,90,0.14); border-radius:12px; padding:10px 13px; font-size:14px; font-family:inherit; color:#3B2E5A; outline:none; margin-bottom:8px; }
+  .cc-search:focus { border-color:#FF9F43; }
+  .cc-list { list-style:none; margin:0; padding:0; max-height:236px; overflow-y:auto; }
+  .cc-list li { display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:11px; cursor:pointer; font-size:14.5px; color:#3B2E5A; }
+  .cc-list li:hover, .cc-list li.active { background:#FFF1DE; }
+  .cc-list li img { width:24px; height:18px; border-radius:3px; object-fit:cover; box-shadow:0 0 0 1px rgba(59,46,90,0.1); flex:none; }
+  .cc-list li .nm { flex:1; }
+  .cc-list li .dl { color:#6B5D8A; font-size:13.5px; }
+  .cc-empty { padding:14px; text-align:center; color:#6B5D8A; font-size:14px; }
+  .field input { flex:1; min-width:0; border:none; outline:none; background:transparent; font-size:16px; font-family:'Plus Jakarta Sans', sans-serif; color:#3B2E5A; padding:12px 4px; }
+  .go { flex:none; width:52px; height:52px; border-radius:999px; border:none; background:#FF9F43; color:#3B2E5A; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(255,159,67,0.42); transition:transform .18s ease, box-shadow .18s ease; }
+  .go:hover { transform:translateY(-2px); box-shadow:0 14px 30px rgba(255,159,67,0.55); }
+  .go:disabled { opacity:0.6; cursor:default; transform:none; box-shadow:none; }
+
+  .msg { min-height:20px; font-size:14px; font-weight:600; margin:14px 2px 0; }
+  .msg.error { color:#C24545; }
+  .helper { font-size:14.5px; color:#6B5D8A; margin:22px 2px 0; }
+  .helper a { color:#5A4A7D; text-decoration:underline; }
+
+  .success { display:none; align-items:flex-start; gap:12px; background:#E8F0E2; border:1px solid rgba(111,156,92,0.3); border-radius:20px; padding:20px 22px; }
+  .success.show { display:flex; }
+  .success span.tick { font-size:22px; line-height:1; }
+  .success p { margin:0; font-size:15.5px; font-weight:600; color:#33512A; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo"><svg viewBox="0 -18 120 134" width="30" height="34" aria-hidden="true" style="overflow:visible;"><defs><linearGradient id="ozzLnav" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC170"></stop><stop offset="0.55" stop-color="#FF9F43"></stop><stop offset="1" stop-color="#F1801F"></stop></linearGradient></defs><path d="M62 -14 C60 -6 58 -1 60 6" stroke="#6F9C5C" stroke-width="5" stroke-linecap="round" fill="none"></path><ellipse cx="71" cy="-9" rx="9" ry="5" fill="#6F9C5C" transform="rotate(-18 71 -9)"></ellipse><path d="M60 6 C90 6 111 28 112 56 C113 86 92 110 59 110 C28 110 8 87 9 57 C10 28 32 6 60 6 Z" fill="url(#ozzLnav)"></path><ellipse cx="45" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse><ellipse cx="78" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse><circle cx="46" cy="58" r="5" fill="#3B2E5A"></circle><circle cx="79" cy="58" r="5" fill="#3B2E5A"></circle></svg>Ozzily</a>
+  <a href="index.html#signup" class="top-cta">New to Ozzily? Get started →</a>
+</header>
+
+<main>
+  <div class="card">
+    <svg class="mascot" viewBox="0 -18 120 134" role="img" aria-label="Ozzily mascot">
+      <defs>
+        <linearGradient id="ozzL" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FFC170"></stop><stop offset="0.55" stop-color="#FF9F43"></stop><stop offset="1" stop-color="#F1801F"></stop>
+        </linearGradient>
+      </defs>
+      <path d="M62 -14 C60 -6 58 -1 60 6" stroke="#6F9C5C" stroke-width="5" stroke-linecap="round" fill="none"></path>
+      <ellipse cx="71" cy="-9" rx="9" ry="5" fill="#6F9C5C" transform="rotate(-18 71 -9)"></ellipse>
+      <path d="M60 6 C90 6 111 28 112 56 C113 86 92 110 59 110 C28 110 8 87 9 57 C10 28 32 6 60 6 Z" fill="url(#ozzL)"></path>
+      <ellipse cx="45" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+      <ellipse cx="78" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse>
+      <circle cx="46" cy="58" r="5" fill="#3B2E5A"></circle>
+      <circle cx="79" cy="58" r="5" fill="#3B2E5A"></circle>
+      <ellipse cx="30" cy="78" rx="7" ry="4" fill="#F4736B" opacity="0.35"></ellipse>
+      <ellipse cx="93" cy="78" rx="7" ry="4" fill="#F4736B" opacity="0.35"></ellipse>
+      <path d="M53 80 Q61.5 88 70 80" stroke="#3B2E5A" stroke-width="3.4" stroke-linecap="round" fill="none" opacity="0.7"></path>
+    </svg>
+
+    <div id="loginView">
+      <h1>Welcome back.</h1>
+      <p class="sub">Log in with the phone number you texted Ozzily with.</p>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <div class="cc" id="cc">
+            <button type="button" class="cc-btn" id="ccBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select country code">
+              <img class="cc-flag" id="ccFlag" alt="" />
+              <span class="cc-dial" id="ccDial">+1</span>
+              <svg class="cc-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="#5A4A7D" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+            <div class="cc-panel" id="ccPanel" hidden>
+              <input type="text" class="cc-search" id="ccSearch" placeholder="Search country…" aria-label="Search country" autocomplete="off" />
+              <ul class="cc-list" id="ccList" role="listbox" aria-label="Country"></ul>
+            </div>
+          </div>
+          <input type="tel" id="phone" inputmode="tel" placeholder="Your phone number" aria-label="Your phone number" autocomplete="tel" />
+        </div>
+        <button type="submit" class="go" id="go" aria-label="Continue">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12h13M12 6l6 6-6 6" stroke="#3B2E5A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+        </button>
+      </form>
+      <p class="msg error" id="msg" role="alert" aria-live="polite"></p>
+      <p class="helper">Trouble logging in? Just text <strong>HELP</strong> to Ozzily and we'll sort it out.</p>
+    </div>
+
+    <div class="success" id="successView" role="status" aria-live="polite">
+      <span class="tick">✅</span>
+      <p>Check your phone — Ozzily just texted you. Reply right there to pick up where you left off.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  // Make.com "Ozzily Login" scenario (id 6333754): looks up the number and texts
+  // "welcome back" if found, or a sign-up nudge if not. Turn the scenario ON in Make
+  // for this to send. If left empty, the page still shows the confirmation UI.
+  const LOGIN_WEBHOOK_URL = 'https://hook.us2.make.com/k9upww5gdjleabl7v72cf1fotikcssz1';
+
+  const form = document.getElementById('loginForm');
+  const input = document.getElementById('phone');
+  const ccBtn = document.getElementById('ccBtn');
+  const ccFlag = document.getElementById('ccFlag');
+  const ccDial = document.getElementById('ccDial');
+  const ccPanel = document.getElementById('ccPanel');
+  const ccSearch = document.getElementById('ccSearch');
+  const ccList = document.getElementById('ccList');
+  let selectedDial = '1';
+  const msg = document.getElementById('msg');
+  const go = document.getElementById('go');
+  const loginView = document.getElementById('loginView');
+  const successView = document.getElementById('successView');
+
+  // [name, ISO2, dial] — full country list; US preselected (product is US-first).
+  const COUNTRIES = [
+    ["Afghanistan","AF","93"],["Albania","AL","355"],["Algeria","DZ","213"],["Andorra","AD","376"],["Angola","AO","244"],["Argentina","AR","54"],["Armenia","AM","374"],["Australia","AU","61"],["Austria","AT","43"],["Azerbaijan","AZ","994"],["Bahamas","BS","1"],["Bahrain","BH","973"],["Bangladesh","BD","880"],["Barbados","BB","1"],["Belarus","BY","375"],["Belgium","BE","32"],["Belize","BZ","501"],["Benin","BJ","229"],["Bhutan","BT","975"],["Bolivia","BO","591"],["Bosnia and Herzegovina","BA","387"],["Botswana","BW","267"],["Brazil","BR","55"],["Brunei","BN","673"],["Bulgaria","BG","359"],["Burkina Faso","BF","226"],["Burundi","BI","257"],["Cambodia","KH","855"],["Cameroon","CM","237"],["Canada","CA","1"],["Cape Verde","CV","238"],["Central African Republic","CF","236"],["Chad","TD","235"],["Chile","CL","56"],["China","CN","86"],["Colombia","CO","57"],["Comoros","KM","269"],["Congo","CG","242"],["Congo (DRC)","CD","243"],["Costa Rica","CR","506"],["Côte d'Ivoire","CI","225"],["Croatia","HR","385"],["Cuba","CU","53"],["Cyprus","CY","357"],["Czechia","CZ","420"],["Denmark","DK","45"],["Djibouti","DJ","253"],["Dominica","DM","1"],["Dominican Republic","DO","1"],["Ecuador","EC","593"],["Egypt","EG","20"],["El Salvador","SV","503"],["Equatorial Guinea","GQ","240"],["Eritrea","ER","291"],["Estonia","EE","372"],["Eswatini","SZ","268"],["Ethiopia","ET","251"],["Fiji","FJ","679"],["Finland","FI","358"],["France","FR","33"],["Gabon","GA","241"],["Gambia","GM","220"],["Georgia","GE","995"],["Germany","DE","49"],["Ghana","GH","233"],["Greece","GR","30"],["Grenada","GD","1"],["Guatemala","GT","502"],["Guinea","GN","224"],["Guinea-Bissau","GW","245"],["Guyana","GY","592"],["Haiti","HT","509"],["Honduras","HN","504"],["Hong Kong","HK","852"],["Hungary","HU","36"],["Iceland","IS","354"],["India","IN","91"],["Indonesia","ID","62"],["Iran","IR","98"],["Iraq","IQ","964"],["Ireland","IE","353"],["Israel","IL","972"],["Italy","IT","39"],["Jamaica","JM","1"],["Japan","JP","81"],["Jordan","JO","962"],["Kazakhstan","KZ","7"],["Kenya","KE","254"],["Kuwait","KW","965"],["Kyrgyzstan","KG","996"],["Laos","LA","856"],["Latvia","LV","371"],["Lebanon","LB","961"],["Lesotho","LS","266"],["Liberia","LR","231"],["Libya","LY","218"],["Liechtenstein","LI","423"],["Lithuania","LT","370"],["Luxembourg","LU","352"],["Macau","MO","853"],["Madagascar","MG","261"],["Malawi","MW","265"],["Malaysia","MY","60"],["Maldives","MV","960"],["Mali","ML","223"],["Malta","MT","356"],["Mauritania","MR","222"],["Mauritius","MU","230"],["Mexico","MX","52"],["Moldova","MD","373"],["Monaco","MC","377"],["Mongolia","MN","976"],["Montenegro","ME","382"],["Morocco","MA","212"],["Mozambique","MZ","258"],["Myanmar","MM","95"],["Namibia","NA","264"],["Nepal","NP","977"],["Netherlands","NL","31"],["New Zealand","NZ","64"],["Nicaragua","NI","505"],["Niger","NE","227"],["Nigeria","NG","234"],["North Korea","KP","850"],["North Macedonia","MK","389"],["Norway","NO","47"],["Oman","OM","968"],["Pakistan","PK","92"],["Palestine","PS","970"],["Panama","PA","507"],["Papua New Guinea","PG","675"],["Paraguay","PY","595"],["Peru","PE","51"],["Philippines","PH","63"],["Poland","PL","48"],["Portugal","PT","351"],["Qatar","QA","974"],["Romania","RO","40"],["Russia","RU","7"],["Rwanda","RW","250"],["Saudi Arabia","SA","966"],["Senegal","SN","221"],["Serbia","RS","381"],["Seychelles","SC","248"],["Sierra Leone","SL","232"],["Singapore","SG","65"],["Slovakia","SK","421"],["Slovenia","SI","386"],["Somalia","SO","252"],["South Africa","ZA","27"],["South Korea","KR","82"],["South Sudan","SS","211"],["Spain","ES","34"],["Sri Lanka","LK","94"],["Sudan","SD","249"],["Suriname","SR","597"],["Sweden","SE","46"],["Switzerland","CH","41"],["Syria","SY","963"],["Taiwan","TW","886"],["Tajikistan","TJ","992"],["Tanzania","TZ","255"],["Thailand","TH","66"],["Timor-Leste","TL","670"],["Togo","TG","228"],["Tonga","TO","676"],["Trinidad and Tobago","TT","1"],["Tunisia","TN","216"],["Turkey","TR","90"],["Turkmenistan","TM","993"],["Uganda","UG","256"],["Ukraine","UA","380"],["United Arab Emirates","AE","971"],["United Kingdom","GB","44"],["United States","US","1"],["Uruguay","UY","598"],["Uzbekistan","UZ","998"],["Vanuatu","VU","678"],["Venezuela","VE","58"],["Vietnam","VN","84"],["Yemen","YE","967"],["Zambia","ZM","260"],["Zimbabwe","ZW","263"]
+  ];
+  const flagUrl = (iso) => 'https://flagcdn.com/48x36/' + iso.toLowerCase() + '.png';
+
+  function setCountry(name, iso, dial) {
+    selectedDial = dial;
+    ccDial.textContent = '+' + dial;
+    ccFlag.src = flagUrl(iso);
+    ccFlag.alt = name;
+  }
+
+  function renderList(filter) {
+    filter = (filter || '').toLowerCase().trim();
+    ccList.innerHTML = '';
+    const matches = COUNTRIES.filter(([n, iso, d]) =>
+      !filter || n.toLowerCase().includes(filter) || d.includes(filter.replace('+', '')) || iso.toLowerCase() === filter);
+    if (!matches.length) { ccList.innerHTML = '<li class="cc-empty">No matches</li>'; return; }
+    matches.forEach(([n, iso, d]) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.innerHTML = '<img loading="lazy" width="24" height="18" src="' + flagUrl(iso) + '" alt=""><span class="nm"></span><span class="dl">+' + d + '</span>';
+      li.querySelector('.nm').textContent = n;
+      li.addEventListener('click', () => { setCountry(n, iso, d); closePanel(); msg.textContent = ''; input.focus(); });
+      ccList.appendChild(li);
+    });
+  }
+
+  function openPanel() { ccPanel.hidden = false; ccBtn.setAttribute('aria-expanded', 'true'); ccSearch.value = ''; renderList(''); ccSearch.focus(); }
+  function closePanel() { ccPanel.hidden = true; ccBtn.setAttribute('aria-expanded', 'false'); }
+
+  ccBtn.addEventListener('click', () => ccPanel.hidden ? openPanel() : closePanel());
+  ccSearch.addEventListener('input', () => renderList(ccSearch.value));
+  document.addEventListener('click', (e) => { if (!document.getElementById('cc').contains(e.target)) closePanel(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
+
+  // Default to US (product is US-first).
+  (function () { const us = COUNTRIES.find(c => c[1] === 'US'); setCountry(us[0], us[1], us[2]); })();
+
+  function normalize() {
+    const dial = selectedDial;
+    const raw = (input.value || '').trim();
+    let digits = raw.replace(/\D/g, '');
+    if (raw.startsWith('+')) return (digits.length >= 8 && digits.length <= 15) ? '+' + digits : null;
+    if (!digits) return null;
+    if (dial === '1') { // NANP (US/Canada/etc.)
+      if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);
+      if (digits.length !== 10) return null;
+      return '+1' + digits;
+    }
+    const full = dial + digits;
+    return (full.length >= 8 && full.length <= 15) ? '+' + full : null;
+  }
+
+  input.addEventListener('input', () => { msg.textContent = ''; });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const e164 = normalize();
+    if (!e164) {
+      msg.textContent = 'Please enter a valid phone number for the country you selected.';
+      return;
+    }
+    go.disabled = true;
+    try {
+      if (LOGIN_WEBHOOK_URL) {
+        const resp = await fetch(LOGIN_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: e164, source: 'login_page', page_url: window.location.href })
+        });
+        if (!resp.ok) throw new Error('Request failed');
+      }
+      loginView.style.display = 'none';
+      successView.classList.add('show');
+    } catch (err) {
+      go.disabled = false;
+      msg.textContent = 'Something went wrong on our end — mind trying again in a moment?';
+    }
+  });
+</script>
+
+</body>
+</html>

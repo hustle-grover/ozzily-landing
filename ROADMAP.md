@@ -138,11 +138,20 @@ Order optimized for "shortest path to a compliant, real beta," which is **not** 
 - **Done when:** a test user receives correctly-timed daily texts end-to-end for 2 days.
 - **Why second:** this is the actual product. Highest engagement leverage per the research.
 
-### Milestone C — Vision / photo verification (Session 2.3)
+### Milestone C — Vision / photo verification (Session 2.3) — ⚠️ PARTIAL
 - Extend Scenario 2's Claude call with an image block for inbound MMS (media_url already logged).
 - Protein-from-photo + workout-photo confirmation, streak update.
 - **Done when:** a meal photo returns a protein estimate and updates the daily total live.
 - **Why third:** delighter, not a gate. Claude is already multimodal — low integration cost, but B moves the metric more.
+
+**Shipped:**
+- Request construction moved into SQL: `ai_brain_system_prompt()` + `build_ai_request(p_phone, p_body, p_media_url, p_media_type, p_media_b64)`. One source of truth for the 7.6k-char prompt instead of duplicating it per Make branch; the AI Brain holds at 9 operations.
+- Vision itself is **proven working** — a hardcoded base64 image came back correctly described by Sonnet 5.
+- A `## Photos` section was added to the system prompt.
+- Graceful degradation: when a photo arrives but its bytes are unavailable, the prompt carries an explicit marker telling Ozzily *not* to claim it saw the image, and to warmly ask the user to describe it. Photos therefore never error — they just are not read yet.
+- `supabase/functions/ai-request/` written, deployed and locked to the service role. It fetches Twilio media, base64-encodes it and forwards to the RPC. Host-allowlisted to Twilio, 3.5MB cap, optional Twilio Basic-auth retry.
+
+**⛔ Blocked on transport (see risk 6).** Anthropic rejects `source.type: "url"`, so image bytes must be fetched and encoded. The edge function does exactly that, but Make's Supabase module cannot reach it.
 
 ### Milestone D — Billing & trial lifecycle (Sessions 3.1/3.2, Scenario 4)
 - Stripe subscription ($29/mo, $249/yr), day-3 trial-end SMS w/ link, webhook activation, dunning, cancel-by-text.
@@ -181,6 +190,7 @@ This is a live gate, not paperwork. 2026 requirements:
 3. **Cost per active user** — proactive daily texts multiply Twilio + Claude spend; watch COGS as volume grows (PRD modeled $5–9/user/mo).
 4. **Competitive parity** — app incumbents (Noom, GLP AI) are well-funded; Ozzily wins on channel + voice, not feature checklists. Don't drift into "app with more features."
 5. **US-only pricing story** — international signups break the unit economics; keep US-first (landing already validates this way).
+6. **⛔ Vision transport (BLOCKER for Milestone C)** — Anthropic only accepts base64 image bytes, never a URL. The `ai-request` edge function solves this, but Make's Supabase connection returns a **gateway-level 403 on `/functions/v1/*`** while the same connection works fine on `/rest/v1/*`, and Make's API cannot show a module's request/response body to diagnose it. Three ways forward, in preference order: **(a)** find the right auth for the Supabase module, or swap module 3 to a generic HTTP module with a Make keychain entry holding the service key — keeps 9 ops; **(b)** a Router with a media branch doing HTTP GET + `toBase64()` — keeps text at 9 ops but duplicates the downstream pipeline; **(c)** an always-on download module — simplest, but costs +1 op on *every* inbound message (~11% more). Also still unverified: whether Twilio media URLs on the Massive Impact Media account need Basic auth (the function already retries with it when the two secrets are set).
 
 ---
 
@@ -199,3 +209,4 @@ This is a live gate, not paperwork. 2026 requirements:
 
 - **2026-09-19** — Roadmap created. Reconciled ProteinPolice PRD → Ozzily. Added body-weight protein target, sharpened SMS-first/proactive positioning, upgraded compliance to 2026 checkbox standard, cut commitment-contracts + symptom-affiliate features, re-ordered milestones (compliance → proactive check-ins → vision → billing). Landing page changes shipped same day: SMS consent language + plan attribution.
 - **2026-09-19** — Shipped the SMS consent checkbox (2026-standard gate). Built `login.html` (Tomo-style "Welcome back.", SMS-native, no consent checkbox) + added "Log in" to nav. Built + tested the **Make "Ozzily Login"** scenario (id 6333754): webhook → Supabase phone lookup → router → welcome-back vs sign-up-nudge SMS; end-to-end verified with a live SMS delivered. **Discovered the Make active-scenario cap blocker** (see §8 / top callout) — Login left inactive because both slots are used by Signup Flow + AI Brain. **Scenario inventory: 3 built (Signup, AI Brain, Login), ~2 to build (Daily Check-ins, Billing); vision is an extension of AI Brain, not a new scenario.**
+- **2026-10-09** — Milestone C (vision) partially landed. Moved Anthropic request construction into Postgres (`ai_brain_system_prompt()`, `build_ai_request(...)`) so the system prompt lives in one place and the AI Brain stays at 9 ops. **Proved vision works** with a base64 image, and **proved `source.type: "url"` is rejected** by the Messages API — that, not the images, was the real cause of the 400s. Added graceful photo degradation so an unreadable photo can never break a turn. Built and deployed the `ai-request` edge function (service-role-only, Twilio host allowlist, size cap) to do the fetch-and-encode. **Transport remains blocked:** Make's Supabase module 403s on `/functions/v1/*` (risk 6). Pipeline left on the verified RPC path and re-tested green end-to-end. Security hardening alongside: pinned `search_path` on 5 functions and revoked public EXECUTE on the `set_timezone_from_phone` trigger function — security advisors are now clean apart from the intentional RLS lockdown.

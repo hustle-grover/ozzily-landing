@@ -90,6 +90,38 @@ generic AI-startup-template aesthetics.
   plumbing fixes are model-agnostic, so a model swap won't fix bugs — only trade math
   reliability for cost. Revisit Haiku only if cost bites at scale, and re-test arithmetic.
 
+- **Anthropic vision needs base64 bytes — a URL is rejected.** `/v1/messages` refuses
+  an image block with `source.type: "url"` (plain `400 Bad Request`, no useful body);
+  only `source.type: "base64"` works. Proven both ways with a hardcoded 1×1 PNG. So any
+  MMS flow must fetch Twilio's media and encode it before the Claude call. When bytes
+  aren't available, `build_ai_request` emits a text marker telling Ozzily not to pretend
+  it saw the photo — never silently drop the attachment.
+- **Do not install the Supabase `http` (pgsql-http) extension.** Its functions are
+  granted `EXECUTE` to `PUBLIC` *by `supabase_admin`*, and `postgres` cannot revoke a
+  grant it didn't make (`set role supabase_admin` is denied too). The usual
+  `revoke ... from public, anon, authenticated` silently no-ops, leaving a permanent
+  un-revokable SSRF primitive. Use an Edge Function for outbound HTTP instead.
+- **`verify_jwt` on an Edge Function is not authorization.** It only proves the caller
+  holds *some* key signed by the project — and the anon key is public. Any function that
+  returns user data or the system prompt must additionally check the presented key is the
+  service role, reading both the `Authorization` and `apikey` headers.
+- **Make's Supabase connection 403s on `/functions/v1/*`** while working fine on
+  `/rest/v1/*`. It's a gateway-level refusal — the function is never invoked — so no
+  amount of in-function logging explains it. Blocks routing the AI Brain through an Edge
+  Function; see ROADMAP risk 6.
+- **Make disables a scenario after `maxErrors` (3) consecutive failures.** It comes back
+  as `isActive: false, isinvalid: true` and silently stops answering the webhook. After
+  any run of failed experiments, re-check `scenarios_get` and call `scenarios_activate` —
+  and expect queued webhook payloads to replay all at once on reactivation.
+- **Debug scaffolding goes in a temp table, then gets dropped.** Since Make can't show
+  module I/O, a throwaway `public._fn_debug` row written from an Edge Function (header
+  *shapes* and role claims only, never key material) is the way to see what a caller
+  actually sent. Drop the table when done.
+- **Keep trigger functions out of the REST API.** `security definer` trigger functions
+  still land on `/rest/v1/rpc/<name>` for `anon`; `get_advisors` flags this. Revoke as
+  with any other function. Also pin `search_path` (`alter function ... set search_path =
+  public, pg_temp`) or every function shows up as `function_search_path_mutable`.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

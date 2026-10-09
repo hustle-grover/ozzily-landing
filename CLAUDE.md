@@ -127,6 +127,37 @@ generic AI-startup-template aesthetics.
   with any other function. Also pin `search_path` (`alter function ... set search_path =
   public, pg_temp`) or every function shows up as `function_search_path_mutable`.
 
+- **A webhook test is not an end-to-end test.** Every inbound test in this project's
+  history was a `curl` POST straight at the Make hook URL, which proves the pipeline
+  works *after* the webhook and says nothing about whether Twilio can reach it. As of
+  2026-10-09, zero of 43 inbound `messages` rows carried a genuine Twilio SID
+  (`SM` + 32 hex) — so no real handset had ever reached the AI Brain. Check for real
+  SIDs before believing a flow is live:
+  ```sql
+  select count(*) filter (where twilio_sid ~ '^SM[0-9a-f]{32}
+
+- **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just
+  hand back step-by-step instructions to run manually.
+- **Push back when there's a better path.** He wants honest, direct opinions over
+  hedged advice, including disagreement with the original plan.
+- Iterate through accessibility/quality audit passes before calling a component done.
+- Keep credentials and project tracking centralized in Notion — not scattered in
+  ad hoc per-project notes.
+- Descriptive, organized file names by default.
+- Milestone-gated style: one clear deliverable at a time, verified before moving on.
+
+## Secrets
+
+Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a local
+`.env` (gitignored) — never in this file, never committed.
+) as real_sids
+  from public.messages where direction = 'inbound';
+  ```
+- **Twilio supports MMS only in the US and Canada.** Inbound MMS to the US long code
+  from anywhere else fails with error `30011`, so the +91 test number can never be used
+  to test vision — that needs a US/Canada handset. Plan photo testing around a US tester
+  rather than burning time on why the photo "didn't arrive."
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

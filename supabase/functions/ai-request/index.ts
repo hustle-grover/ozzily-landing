@@ -1,16 +1,12 @@
 // Ozzily — AI Brain request builder.
 //
-// NOT YET WIRED IN. The AI Brain scenario still calls the build_ai_request RPC
-// directly; see ROADMAP.md "Vision transport". This exists because Twilio hands
-// us an MMS *URL* and the Anthropic Messages API rejects `source.type: "url"` —
-// it only accepts base64 bytes, so something has to fetch and encode the image.
-// Doing it here keeps Make at 9 operations with a single code path for every
-// message (a Router branch would duplicate the whole downstream pipeline, and
-// an always-on download module would cost an extra operation on every text).
-//
-// Blocker: Make's Supabase module gets a gateway-level 403 calling
-// /functions/v1/* with the same connection that works fine for /rest/v1/*, and
-// Make's API cannot show a module's request or response body to diagnose it.
+// The AI Brain scenario (Make id 6236182, module 3) calls this instead of the
+// build_ai_request RPC directly. It exists because Twilio hands us an MMS *URL*
+// and the Anthropic Messages API rejects `source.type: "url"` — it only accepts
+// base64 bytes, so something has to fetch and encode the image. Doing it here
+// keeps Make at 9 operations with a single code path for every message: a
+// Router branch would duplicate the whole downstream pipeline, and an
+// always-on download module would cost an extra operation on every text.
 //
 // Contract: same shape in and out as the PostgREST RPC it wraps, so the Make
 // module's `body[1].user_id` / `body[1].request_json` mappings stay unchanged.
@@ -56,11 +52,12 @@ function hostAllowed(raw: string): boolean {
  * and the entire system prompt. Only the service role may build a request.
  *
  * Both headers are checked because callers are inconsistent about which one
- * carries the key: Make's Supabase module sends `apikey`, while a plain fetch
- * sends `Authorization: Bearer`. The presented key is matched against this
- * project's own service-role key, which works whether that key is a legacy
- * JWT or a new-style `sb_secret_` string; the role-claim check is a fallback
- * for JWTs minted with a different secret rotation.
+ * carries the key: Make's Supabase module sends `apikey`, a plain fetch sends
+ * `Authorization: Bearer`. Checking only the latter produced a 403 that looked
+ * exactly like a gateway refusal. The key is matched against this project's
+ * own service-role key, which works whether that key is a legacy JWT or a
+ * new-style `sb_secret_` string; the role-claim check is a fallback for JWTs
+ * from a different secret rotation.
  */
 function isServiceRole(req: Request): boolean {
   const candidates = [

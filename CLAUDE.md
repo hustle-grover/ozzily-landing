@@ -105,10 +105,15 @@ generic AI-startup-template aesthetics.
   holds *some* key signed by the project — and the anon key is public. Any function that
   returns user data or the system prompt must additionally check the presented key is the
   service role, reading both the `Authorization` and `apikey` headers.
-- **Make's Supabase connection 403s on `/functions/v1/*`** while working fine on
-  `/rest/v1/*`. It's a gateway-level refusal — the function is never invoked — so no
-  amount of in-function logging explains it. Blocks routing the AI Brain through an Edge
-  Function; see ROADMAP risk 6.
+- **Make's Supabase module authenticates with the `apikey` header, not
+  `Authorization: Bearer`.** An Edge Function that checks only `Authorization`
+  will reject Make with a 403 that looks exactly like a gateway refusal. Read
+  both headers. This cost an hour of misdiagnosis — the AI Brain now calls
+  `/functions/v1/ai-request` through the ordinary Supabase connection with no
+  extra operation, so there is no gateway restriction on `/functions/v1/*`.
+- **When an Edge Function 403s, check the deploy timestamp against the test
+  timestamp before concluding anything.** A fix deployed *after* the failing
+  test, or probed within ~15s of deploying, reads as "still broken."
 - **Make disables a scenario after `maxErrors` (3) consecutive failures.** It comes back
   as `isActive: false, isinvalid: true` and silently stops answering the webhook. After
   any run of failed experiments, re-check `scenarios_get` and call `scenarios_activate` —

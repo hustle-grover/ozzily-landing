@@ -158,6 +158,23 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   to test vision — that needs a US/Canada handset. Plan photo testing around a US tester
   rather than burning time on why the photo "didn't arrive."
 
+- **A Make webhook must "learn" its payload shape before `{{1.field}}` resolves.** If a
+  hook has no learned data structure, every mapping from it silently evaluates to empty —
+  which surfaces far downstream as a confusing error (for Login it was Twilio `21604`,
+  "a 'To' phone number is required"). Fix with `hooks_learn_start` → POST one
+  representative payload → `hooks_learn_stop`, then re-test. Suspect this whenever a
+  mapping that *looks* correct yields nothing.
+- **A failing instant scenario jams its hook queue, and the jam outlives the fix.** Three
+  consecutive errors trip `maxErrors`, Make deactivates the scenario, and queued payloads
+  pile up behind the failure ("fix the error or clear the queue"). After fixing, reactivate
+  and let the queue drain — and prefer a guard filter that makes bad payloads exit
+  cleanly over deleting queue items. A payload too malformed for Make to deserialize
+  (e.g. 1 byte) can sit in the queue permanently and cannot be drained at all.
+- **Put `onerror → Ignore` on every Supabase module in every scenario.** Make intermittently
+  gets `401 JWT issued at future` from Supabase — clock skew, not misconfiguration. Two
+  runs in the same second can split one success / one failure. Without a handler, that
+  transient 401 trips `maxErrors` and jams the queue, turning a blip into an outage.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

@@ -175,6 +175,21 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   runs in the same second can split one success / one failure. Without a handler, that
   transient 401 trips `maxErrors` and jams the queue, turning a blip into an outage.
 
+- **Twilio posts `application/x-www-form-urlencoded`, not JSON — teach the hook with a
+  form-encoded payload.** The AI Brain hook had only ever learned the JSON shape from
+  `curl` tests, so when real Twilio traffic arrived every mapping (`{{1.From}}`,
+  `{{1.Body}}`, `{{1.MediaUrl0}}`) resolved empty and the run died three modules later.
+  Make stored each real delivery as a **1-byte** queue item, which is the tell: a genuine
+  Twilio POST is hundreds of bytes, so a 1-byte stored payload means Make received
+  something it could not map to a learned structure. When simulating Twilio, always send
+  `--data-urlencode` form fields (`From`, `To`, `Body`, `NumMedia`, `MediaUrl0`,
+  `MediaContentType0`, `MessageSid`, …), never JSON — a JSON test will pass while real
+  traffic silently fails.
+- **Use a synthetic, non-matching `MessageSid` in tests** (e.g. `SMsynthetic-…`), never
+  `SM` + 32 hex. A realistic-looking fake SID would pass the "is this real traffic?"
+  query above and destroy the one signal that distinguishes genuine handset messages
+  from test posts.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

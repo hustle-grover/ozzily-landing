@@ -190,6 +190,22 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   query above and destroy the one signal that distinguishes genuine handset messages
   from test posts.
 
+- **Inbound SMS from the +91 test number does not reach Twilio at all — confirmed twice.**
+  Twilio's Monitor → Logs shows every message in the account as `Outbound API`, with zero
+  inbound rows ever. Outbound to India works (Delivered via carrier), but a +1 long code
+  receiving from outside +1 is ["not guaranteed to work in all cases, or at all
+  times"](https://help.twilio.com/articles/360045489294), and Twilio also **substitutes the
+  sender ID** on international delivery (messages went out from `+590391…`, not the Twilio
+  number), so a reply would be addressed to a number we do not own. The conversational loop
+  therefore cannot be tested from Pankaj's phone by any configuration change — it needs a
+  US/Canada sender.
+- **Check the Notion Builder OS before diagnosing anything infrastructural.** The finding
+  above was *already recorded in the Daily Log on 2026-09-14*, confirmed via a Twilio support
+  ticket, but it existed only in Notion and not in this file — so it was rediscovered from
+  scratch a month later at the cost of a long debugging session. Search the Builder OS
+  (Projects / Daily Log / Credentials Vault) first, and when something is learned there,
+  mirror it into this file. A finding that lives in only one system gets re-learned.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

@@ -69,9 +69,9 @@ plus conversational replies.
 
 > Ozzily is an opt-in SMS coaching service for adults working on nutrition and strength. After
 > a user submits their mobile number on ozzily.com and ticks a dedicated SMS consent box, we
-> send a few short texts a day about daily protein intake, resistance training and hydration,
-> and we reply conversationally when the user texts us about meals or workouts. Targets are
-> personalised from goals the user sets during a short SMS onboarding.
+> send up to four short scheduled check-ins a day about protein intake, resistance training
+> and hydration, and we reply conversationally when the user texts us about meals or workouts.
+> Targets are personalised from goals the user sets during a short SMS onboarding.
 >
 > Ozzily does not sell, prescribe, promote, advertise or recommend any medication or health
 > product. It operates no pharmacy and no mail-order service, carries no promotional or
@@ -86,9 +86,11 @@ plus conversational replies.
 
 > Consent is collected on our website at https://ozzily.com. The visitor enters their mobile
 > number in the signup form and must tick a dedicated, unchecked, optional checkbox reading:
-> "Sure, text me! I'm happy to get daily texts from Ozzily at this number." Directly beneath
-> it the form displays: "Frequency varies · msg & data rates may apply · text STOP or HELP
-> anytime." with links to our Terms (https://ozzily.com/terms.html) and Privacy Policy
+> "I agree to receive recurring automated text messages from Ozzily (daily coaching check-ins
+> and account/billing texts) at this number." Directly beneath it the form displays: "Up to 4
+> scheduled msgs/day, plus replies and occasional account or billing texts. Msg & data rates
+> may apply. Reply STOP to cancel, HELP for help. Consent is not a condition of purchase."
+> with links to our Terms (https://ozzily.com/terms.html) and Privacy Policy
 > (https://ozzily.com/privacy.html).
 >
 > The checkbox is not pre-ticked, is not bundled with any other agreement, and is not required

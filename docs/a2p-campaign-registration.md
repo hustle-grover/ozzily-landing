@@ -1,15 +1,18 @@
-# A2P 10DLC Campaign registration — submission draft
+# A2P 10DLC Campaign registration — submission pack
 
 **Status 2026-10-15:** Compliance profile ✅ · Messaging Service ✅ · Brand ✅ ·
 **Campaign ⛔ NOT STARTED.**
 
+Console path: **Messaging → Regulatory Compliance → A2P 10DLC → Campaigns → Create**.
+
 Without an approved Campaign, Twilio blocks every US-bound message with
 [`30034`](https://www.twilio.com/docs/api/errors/30034) — welcome SMS, daily check-ins and AI
-replies alike. Inbound is *not* A2P-gated, so inbound testing can proceed in parallel.
+replies alike. **Ozzily currently cannot message a single US user.** Inbound is *not*
+A2P-gated, so inbound testing can proceed in parallel with approval.
 
 ---
 
-## ⚠️ Read this first: GLP-1 is a named rejection category
+## ⚠️ Before you submit: GLP-1 is a named rejection category
 
 Twilio has rejection codes aimed squarely at this product's subject matter:
 
@@ -21,38 +24,31 @@ Twilio has rejection codes aimed squarely at this product's subject matter:
 
 `30941` is the dangerous one: a careless submission can **permanently burn the campaign**.
 
-**Ozzily is not what those rules target.** It sells no medication, operates no pharmacy,
-recommends no drug, and gives no dosing or medical advice. It is a nutrition and exercise
-coaching service whose subscribers happen to be under their own prescriber's care. But a
-reviewer skimming a sample message that reads *"what medication are you on? Reply: 1) Ozempic
-2) Wegovy 3) Mounjaro 4) Zepbound"* can easily mis-file it.
+**Two rules follow from this, and they pull in opposite directions. Both matter.**
 
-**Therefore: no drug brand names anywhere in the campaign — and, because registered samples
-must match production, none in the live onboarding message either.** See the next section.
+1. **No drug brand names in the campaign or in any message.** A sample that reads *"what
+   medication are you on? Reply: 1) Ozempic 2) Wegovy…"* invites `30941` even though Ozzily
+   sells nothing. ✅ Already done — see "Production state" below.
+2. **Do not hide the audience either.** The site's `<title>` is *"Ozzily — Your GLP-1 SMS
+   companion"* and the hero says *"Built for GLP-1 journeys"*. A campaign description that
+   never mentions GLP-1 while the website leads with it reads as **misrepresentation**, which
+   is worse than disclosure and lands in the same non-resubmittable bucket.
+
+The description below therefore **names the audience plainly and rebuts the promotional
+concern head-on**. Twilio's own rule is that *informational* use cases are permitted; Ozzily
+is informational coaching, so say so rather than dodging.
 
 ---
 
-## Required product change before submitting
+## Production state — what the reviewer will find if they check
 
-The current welcome SMS names four drugs. Registering a sanitised version while production
-sends brand names is a mismatch risk and pointless if traffic is ever audited. Change
-production first.
-
-**Proposed replacement welcome message** — drops the drug names, keeps every required
-compliance element, and collects the body weight that ROADMAP §4 needs for the
-body-weight-based protein target (1.2–2.0 g/kg), which onboarding has never asked for:
-
-> Hey! I'm Ozzily 👋 I'll help you hold on to your strength while you work on your weight.
-> First up — roughly what do you weigh? Reply with a number (e.g. 180 lb or 82 kg) and I'll
-> set your daily protein target.
->
-> Ozzily sends a few texts a day. Msg & data rates may apply. Reply STOP to cancel, HELP for
-> help.
-
-Touches the Signup Flow welcome text, `ai_brain_system_prompt()`, and the onboarding state
-machine. **Trade-off:** the `medication` field stops being collected at signup, and the system
-prompt's side-effect protocol currently references it. Decide whether that protocol still
-needs the drug name, or whether it can key off symptoms the user reports instead.
+| Claim in this pack | Status |
+|---|---|
+| No drug names in any outbound message | ✅ Welcome text and onboarding changed 2026-10-15; prompt rule 8 forbids Ozzily naming a medication even if the user does |
+| Welcome text matches sample 1 verbatim | ✅ Shipped to both Make modules (SendSMS body **and** the logged copy) |
+| Frequency claim matches the code | ✅ `get_due_checkins()` caps at 4 beats (`intense`); default `steady` is 3 |
+| Consent audit trail | ✅ `consent_at` + `consent_text = 'sms_opt_in_v2'` (bumped when the checkbox wording changed) |
+| No affiliate or promotional links | ✅ Verified: `affiliate_clicks` 0 rows, no affiliate reference in the system prompt, **zero outbound messages have ever contained a link** |
 
 ---
 
@@ -65,48 +61,48 @@ plus conversational replies.
 
 ### Campaign description
 
-*(Leads with what the service is, then rebuts the `30941` / `30565` triggers explicitly.)*
-
-> Ozzily is an opt-in SMS coaching service for adults working on nutrition and strength. After
-> a user submits their mobile number on ozzily.com and ticks a dedicated SMS consent box, we
-> send up to four short scheduled check-ins a day about protein intake, resistance training
-> and hydration, and we reply conversationally when the user texts us about meals or workouts.
-> Targets are personalised from goals the user sets during a short SMS onboarding.
+> Ozzily, a product of Massive Impact Media Private Limited, is an opt-in, informational SMS
+> coaching service for adults working on nutrition and strength, including many who use GLP-1
+> weight-management medication prescribed by their own clinician. After a user submits their
+> mobile number on ozzily.com and ticks a dedicated SMS consent box, we send up to four short
+> scheduled check-ins a day about protein intake, resistance training and hydration, and we
+> reply conversationally when the user texts us about meals or workouts. Targets are
+> personalised from information the user provides during a short SMS onboarding.
 >
 > Ozzily does not sell, prescribe, promote, advertise or recommend any medication or health
 > product. It operates no pharmacy and no mail-order service, carries no promotional or
-> marketing content of any kind, and provides no medical, clinical or dosing advice.
-> Subscribers are adults already under the care of their own clinician, and Ozzily directs
-> anything medical back to that prescriber. All message content concerns food, protein,
-> exercise and hydration habits.
+> marketing content of any kind, and provides no medical, clinical or dosing advice. Anything
+> medical is directed back to the user's own prescriber. All message content concerns food,
+> protein, exercise and hydration habits. The website carries a trademark and non-affiliation
+> disclaimer stating that Ozzily is independent of, and not endorsed by, any pharmaceutical
+> manufacturer.
 
 ### Message flow / opt-in description
 
-*(The field most campaigns are rejected on. Describes the real flow exactly.)*
+*(The field most campaigns are rejected on. Describe the real flow exactly — no contradictions.)*
 
 > Consent is collected on our website at https://ozzily.com. The visitor enters their mobile
-> number in the signup form and must tick a dedicated, unchecked, optional checkbox reading:
-> "I agree to receive recurring automated text messages from Ozzily (daily coaching check-ins
-> and account/billing texts) at this number." Directly beneath it the form displays: "Up to 4
-> scheduled msgs/day, plus replies and occasional account or billing texts. Msg & data rates
-> may apply. Reply STOP to cancel, HELP for help. Consent is not a condition of purchase."
-> with links to our Terms (https://ozzily.com/terms.html) and Privacy Policy
-> (https://ozzily.com/privacy.html).
+> number in the signup form and must tick a dedicated checkbox reading: "I agree to receive
+> recurring automated text messages from Ozzily (daily coaching check-ins and account/billing
+> texts) at this number." Directly beneath it the form displays: "Up to 4 scheduled msgs/day,
+> plus replies and occasional account or billing texts. Msg & data rates may apply. Reply STOP
+> to cancel, HELP for help. Consent is not a condition of purchase." with links to our Terms
+> (https://ozzily.com/terms.html) and Privacy Policy (https://ozzily.com/privacy.html).
 >
-> The checkbox is not pre-ticked, is not bundled with any other agreement, and is not required
-> to use the rest of the site. The form cannot be submitted unless it is ticked. Consent is
-> stored server-side with a timestamp and a consent-version string, giving a per-user audit
-> trail. Immediately after opt-in the user receives a confirmation message identifying the
-> sender, stating message frequency, "Msg & data rates may apply", and "Reply STOP to cancel,
-> HELP for help."
+> The checkbox is not pre-ticked and is not bundled with any other agreement. It must be
+> ticked to submit the signup form and receive texts, and no part of the site beyond SMS
+> signup requires it. Consent is stored server-side with a timestamp and a consent-version
+> string, giving a per-user audit trail. Immediately after opt-in the user receives a
+> confirmation message identifying the sender, stating message frequency, "Msg & data rates
+> may apply", and "Reply STOP to cancel, HELP for help."
 
 **Opt-in type:** Web form · **Opt-in keywords:** START, UNSTOP
 **Opt-in confirmation message:** sample 1 below.
 
 ### Sample messages
 
-*(Samples 2–5 are verbatim production messages. Sample 1 is the proposed replacement welcome
-text above — ship it to production before submitting.)*
+*(All five are the exact text production sends. Samples 2–5 are verbatim messages pulled from
+the `messages` table.)*
 
 **1 — Opt-in confirmation / onboarding**
 
@@ -114,7 +110,7 @@ text above — ship it to production before submitting.)*
 > First up — roughly what do you weigh? Reply with a number (e.g. 180 lb or 82 kg) and I'll
 > set your daily protein target.
 >
-> Ozzily sends a few texts a day. Msg & data rates may apply. Reply STOP to cancel, HELP for
+> Ozzily sends up to 4 texts a day. Msg & data rates may apply. Reply STOP to cancel, HELP for
 > help.
 
 **2 — Morning check-in**
@@ -124,23 +120,30 @@ text above — ship it to production before submitting.)*
 
 **3 — Conversational reply after a user texts in a meal**
 
-> Paneer tikka + curd sounds great — roughly 20g protein there. That puts you at 20/80g, 60g
-> to go. A scoop of dal or a glass of milk later would help close the gap 😊
+> 3 eggs + a shake, nice fuel 🥚 That's roughly 43g. You're at 91/80g today — goal smashed!
+> Great day for protein.
 
 **4 — Midday nudge**
 
-> Tip: keep a block of cheese or jerky in your bag — zero prep, instant protein. 80g is the
-> target, still at 0, so an easy grab-and-go start works great.
+> Plenty of day left to hit 80g. A couple hard-boiled eggs or some turkey slices now would get
+> the ball rolling without much effort.
 
 **5 — Evening recap**
 
-> Ended at 0 of 80g. Quick tip for tomorrow: keep a protein shake or Greek yogurt somewhere
-> visible — out of sight usually means out of mind. Small fix, real difference.
+> 139g against an 80g goal — that's a strong finish. Muscle's getting what it needs today.
+> Rest easy tonight, friend.
 
-Every sample is about food, protein and training. **No drug names, no promotional language,
-no claims about medication or outcomes.**
+Every sample concerns food, protein and training. **No drug names, no promotional language, no
+claims about medication or health outcomes, no links.**
 
 ### HELP / STOP
+
+> ⚠️ **Confirm before submitting.** Twilio handles STOP/HELP automatically for 10DLC unless
+> **Advanced Opt-Out** is enabled on the Messaging Service. If it is *not* enabled, Twilio
+> sends its own default wording and the copy below is not what subscribers actually receive —
+> a registered sample that never gets sent is a mismatch. Either enable Advanced Opt-Out with
+> this exact copy, or register Twilio's defaults instead. Check:
+> **Messaging → Services → [your service] → Opt-Out Management.**
 
 **HELP keywords:** HELP, INFO
 
@@ -153,35 +156,51 @@ no claims about medication or outcomes.**
 
 ### Content attributes
 
-| Question | Answer |
-|---|---|
-| Embedded links? | **Yes** — ozzily.com, later Stripe billing links |
-| Embedded phone numbers? | No |
-| Age-gated content? | No |
-| Direct lending / loan arrangement? | No |
-| Affiliate marketing? | No |
+| Question | Answer | Why |
+|---|---|---|
+| Embedded links? | **Yes** | ozzily.com appears in terms/consent context, and Stripe billing links arrive with Milestone D. No message contains a link today — declaring Yes now is safe; declaring No and later sending one is not. |
+| Embedded phone numbers? | No | |
+| Age-gated content? | No | 18+ requirement is an eligibility term, not age-gated content |
+| Direct lending / loan arrangement? | No | |
+| Affiliate marketing? | **No** | Verified against production, not assumed — see "Production state" |
 
 ---
 
 ## Site-side requirements — status
 
 Twilio checks the website against its documented rejection reasons (`30810`, `30922`), and the
-Campaign form states the privacy policy must be titled "Privacy Policy", describe what is
-collected and how it is used, **contain a specific verbatim sentence**, and name the registered
-Brand.
+Campaign form additionally requires the privacy policy to be titled "Privacy Policy", describe
+what is collected and how it is used, **contain a specific verbatim sentence**, and name the
+registered Brand.
 
 - [x] Page titled **Privacy Policy** at `/privacy.html`
 - [x] Registered Brand name **Massive Impact Media Private Limited** appears on it
-- [x] Verbatim statement added 2026-10-15: *"We do not sell or share your SMS opt-in data or
-      personal information with third parties for marketing purposes."* — the previous wording
-      ("We do not sell your personal information") did **not** satisfy the literal requirement
-- [x] Terms of Service live at `/terms.html`
-- [x] Legal entity in the site footer
-- [x] Dedicated, unchecked, optional SMS consent checkbox — not bundled, not required
-- [x] Frequency + "msg & data rates may apply" + STOP/HELP shown at point of consent
+- [x] Verbatim statement present: *"We do not sell or share your SMS opt-in data or personal
+      information with third parties for marketing purposes."* — the earlier wording ("We do
+      not sell your personal information") did **not** satisfy the literal requirement
+- [x] Follow-up sentence: *"Mobile phone numbers and SMS consent are never shared with third
+      parties or affiliates for their marketing or promotional use."*
+- [x] Terms of Service live at `/terms.html`, with a dedicated **§6 SMS Terms** block
+- [x] Legal entity in the site footer, plus a trademark / non-affiliation disclaimer
+- [x] SMS consent checkbox is **not pre-ticked**, not bundled, and **required to submit**
+      (`consent: false` initial state; `onSubmit` returns early if unticked)
+- [x] Frequency + "msg & data rates may apply" + STOP/HELP shown at the point of consent
+- [x] Frequency wording identical across the checkbox, terms §6 and privacy §5
 - [x] Welcome message carries identity, frequency, rates and STOP/HELP
-- [x] Consent audit trail (`consent_at`, `consent_text = 'sms_opt_in_v1'`)
-- [x] **Welcome message updated to drop drug brand names** — shipped 2026-10-15. Onboarding now asks body weight and derives the protein target (weight_kg x 1.6); the medication question is gone entirely, and a new prompt rule forbids Ozzily from naming any medication in a reply even if the user does
+- [x] Consent audit trail (`consent_at`, `consent_text = 'sms_opt_in_v2'`)
+
+### Known residual risk — your call
+
+The homepage FAQ answers *"Which medications does Ozzily support?"* by naming Ozempic, Wegovy,
+Mounjaro, Zepbound **and compounded semaglutide and tirzepatide**. Decision so far: leave it,
+because it describes the audience rather than promoting a product, and removing it would hurt
+clarity for real users.
+
+Worth knowing: **compounded GLP-1s are the most scrutinised corner of this category**, since
+compounding pharmacies and telehealth resellers are what the rules were written for. If the
+campaign is rejected on content, that phrase is the first thing to revisit — not the terms
+page, and not the footer disclaimer, which is *protective* because it explicitly disclaims
+affiliation with the manufacturers.
 
 ---
 
@@ -192,11 +211,16 @@ Brand.
    approved Campaign. A number outside the pool stays unregistered and still returns `30034`.
 3. **Re-check the inbound webhook.** The number is attached to a Messaging Service, so Twilio
    routes inbound via **Messaging Service → Integration**, *not* the number's own "A MESSAGE
-   COMES IN" field, which is where it was configured. Point the Messaging Service at
+   COMES IN" field, which is where it was originally configured. Point the Messaging Service at
    `https://hook.us2.make.com/ddlsy3q3kseacijjnowye2emc5h691el` (HTTP POST) as well.
-4. Have a US contact text +1 415 969 2088, then check for the first genuine Twilio SID:
+4. Have a US contact text +1 415 969 2088 — inbound is not A2P-gated, so this works even
+   before approval — then check for the first genuine Twilio SID:
 
 ```sql
 select count(*) filter (where twilio_sid ~ '^SM[0-9a-f]{32}$') as real_sids
 from public.messages where direction = 'inbound';
 ```
+
+5. Send one US-bound reply and confirm it is **not** blocked with `30034`. Approval of the
+   Campaign and correct sender-pool membership are two different things; only a delivered
+   message proves both.

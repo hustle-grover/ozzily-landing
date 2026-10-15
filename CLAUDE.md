@@ -206,6 +206,43 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   (Projects / Daily Log / Credentials Vault) first, and when something is learned there,
   mirror it into this file. A finding that lives in only one system gets re-learned.
 
+- **A2P 10DLC gates *outbound* to US numbers, and the Campaign was never created.** Brand
+  registration is not enough. Without an **approved Campaign** with the number in the
+  attached Messaging Service's sender pool, Twilio blocks every US-bound message with
+  [`30034`](https://www.twilio.com/docs/api/errors/30034) — welcome SMS, daily check-ins and
+  AI replies alike. Confirmed "Not started" in the Console on 2026-10-15. It hid for weeks
+  because the only test recipient was an Indian number, which is not A2P-governed: **outbound
+  appearing to work for Pankaj was never evidence that it works for customers.** Inbound is
+  *not* A2P-gated, so inbound testing and Campaign approval are independent tasks.
+  Submission draft with real production data: `docs/a2p-campaign-registration.md`.
+- **A number attached to a Messaging Service takes its inbound webhook from the Messaging
+  Service, not the number.** Ozzily's number is in a Messaging Service (that setup step shows
+  Complete), but the "A MESSAGE COMES IN" webhook was configured on the *number*. Set it on
+  **Messaging Service → Integration** too, or inbound silently goes nowhere once real traffic
+  starts. Verify this before concluding anything about inbound.
+- **Twilio's international sender-ID substitution is visible on the handset.** Check-ins to
+  the +91 number arrive from **`59039149`**, not +1 415 969 2088 — so a reply is addressed to
+  a number we do not own and vanishes. `59039149` is short-code-shaped, and Twilio long codes
+  cannot receive from short codes by default, making replies structurally undeliverable. If a
+  tester says "I replied and nothing happened", have them read the sender number off the
+  message first; it is a ten-second check that beats any amount of log archaeology.
+- **The old `+1 415 980 6160` cannot be used for testing.** It sits on a separate *trial*
+  account, which cannot register A2P 10DLC and can only send to verified numbers (`21608`).
+  A trial account is a dead end for any US-bound test.
+
+- **After changing a Postgres function's signature, reload PostgREST's schema cache.**
+  Adding `p_weight_kg` to `apply_ai_turn` meant dropping and recreating it with a new arg
+  list. The database had the new function immediately, but PostgREST kept serving its cached
+  schema and could not resolve the call — so the AI Brain ran 7 operations instead of 9 and
+  the turn was silently swallowed by the module's `onerror → Ignore`. Nothing errored
+  visibly; the message simply never got logged. Fix:
+  ```sql
+  notify pgrst, 'reload schema';
+  ```
+  Suspect this whenever a Make scenario starts exiting early right after a function change,
+  and note that the `onerror` guards which keep the queue healthy also hide this failure —
+  compare the operation count against a known-good run to spot it.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

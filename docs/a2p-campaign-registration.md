@@ -179,7 +179,7 @@ Brand.
 - [x] Frequency + "msg & data rates may apply" + STOP/HELP shown at point of consent
 - [x] Welcome message carries identity, frequency, rates and STOP/HELP
 - [x] Consent audit trail (`consent_at`, `consent_text = 'sms_opt_in_v1'`)
-- [ ] **Welcome message updated to drop drug brand names** ← do this before submitting
+- [x] **Welcome message updated to drop drug brand names** — shipped 2026-10-15. Onboarding now asks body weight and derives the protein target (weight_kg x 1.6); the medication question is gone entirely, and a new prompt rule forbids Ozzily from naming any medication in a reply even if the user does
 
 ---
 

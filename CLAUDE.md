@@ -230,6 +230,19 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   account, which cannot register A2P 10DLC and can only send to verified numbers (`21608`).
   A trial account is a dead end for any US-bound test.
 
+- **After changing a Postgres function's signature, reload PostgREST's schema cache.**
+  Adding `p_weight_kg` to `apply_ai_turn` meant dropping and recreating it with a new arg
+  list. The database had the new function immediately, but PostgREST kept serving its cached
+  schema and could not resolve the call — so the AI Brain ran 7 operations instead of 9 and
+  the turn was silently swallowed by the module's `onerror → Ignore`. Nothing errored
+  visibly; the message simply never got logged. Fix:
+  ```sql
+  notify pgrst, 'reload schema';
+  ```
+  Suspect this whenever a Make scenario starts exiting early right after a function change,
+  and note that the `onerror` guards which keep the queue healthy also hide this failure —
+  compare the operation count against a known-good run to spot it.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

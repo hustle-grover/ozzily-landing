@@ -267,6 +267,20 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   down with it — including non-US traffic, which is otherwise unaffected by A2P. Keep
   auto-recharge on; a prepaid balance is a single point of failure for the entire product.
 
+- **An `onerror` handler that can itself fail will disable the scenario.** The AI Brain's
+  parse-step fallback was a `twilio:SendSMS` with no handler of its own. With the Twilio
+  account suspended, a single bad LLM response triggered the fallback, the fallback failed
+  with `20003`, and that counted as a scenario error — three of those and Make disabled the
+  engine and started queueing. Every fallback module now has its own nested
+  `onerror → Ignore`. **Rule: the last module in any error path must be unfailable.**
+- **Streaks are computed, never incremented.** `upsert_streak_day()` recomputes the day's
+  protein total from the message log and upserts one row per user per *local* date, then
+  `recalculate_streak()` counts consecutive `day_complete` days. Because nothing increments,
+  replays, duplicate webhooks and same-day follow-up messages are all safe — verified: a
+  second message the same day moved the total 90g → 102g while the streak correctly stayed
+  at 1. The original `recalculate_streak()` used **UTC** for "today", the same bug class as
+  the old protein-total function; it now uses the user's timezone.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

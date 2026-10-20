@@ -1,14 +1,21 @@
 # A2P 10DLC Campaign registration — submission pack
 
-**Status 2026-10-15:** Compliance profile ✅ · Messaging Service ✅ · Brand ✅ ·
-**Campaign ⛔ NOT STARTED.**
+**Status 2026-10-20: ✅ CAMPAIGN APPROVED** (approved 2026-10-17, submitted 2026-10-15).
 
-Console path: **Messaging → Regulatory Compliance → A2P 10DLC → Campaigns → Create**.
+| | |
+|---|---|
+| Campaign SID | `CMe88b63cbe17c94262d71aa04f4809c0f` |
+| Brand Registration SID | `BNaba4888535a2aa7d4c640f9c2b73846a` |
+| Messaging Service SID | `MG8e48aec3657726f814310fd9ba406db1` |
+| Use case | LOW_VOLUME |
 
-Without an approved Campaign, Twilio blocks every US-bound message with
-[`30034`](https://www.twilio.com/docs/api/errors/30034) — welcome SMS, daily check-ins and AI
-replies alike. **Ozzily currently cannot message a single US user.** Inbound is *not*
-A2P-gated, so inbound testing can proceed in parallel with approval.
+> ⛔ **Approved does not mean sending.** Twilio's approval email is explicit: *"You can begin sending messages on this Campaign by **adding phone numbers to the linked messaging service**."* Until +1 415 969 2088 is in the sender pool of `MG8e48aec…`, US-bound messages still return `30034`.
+>
+> ⛔ **The Twilio account is currently SUSPENDED** for low balance (2026-10-20); a support ticket is open. All sending stopped on 2026-10-15 — see the restore checklist at the end of this file.
+
+The Campaign is approved, so the regulatory gate is cleared. What remains is operational:
+the account is suspended, and the number still has to be added to the Campaign's Messaging
+Service sender pool. Both are covered in the restore checklist below.
 
 ---
 
@@ -204,23 +211,32 @@ affiliation with the manufacturers.
 
 ---
 
-## After approval — verify, don't assume
+## Restore checklist — do these in order when the account is reinstated
 
-1. Confirm the Campaign reaches **approved**, not merely *submitted*.
-2. Confirm **+1 415 969 2088 is in the sender pool** of the Messaging Service attached to the
-   approved Campaign. A number outside the pool stays unregistered and still returns `30034`.
-3. **Re-check the inbound webhook.** The number is attached to a Messaging Service, so Twilio
-   routes inbound via **Messaging Service → Integration**, *not* the number's own "A MESSAGE
-   COMES IN" field, which is where it was originally configured. Point the Messaging Service at
-   `https://hook.us2.make.com/ddlsy3q3kseacijjnowye2emc5h691el` (HTTP POST) as well.
-4. Have a US contact text +1 415 969 2088 — inbound is not A2P-gated, so this works even
-   before approval — then check for the first genuine Twilio SID:
-
-```sql
-select count(*) filter (where twilio_sid ~ '^SM[0-9a-f]{32}$') as real_sids
-from public.messages where direction = 'inbound';
-```
-
-5. Send one US-bound reply and confirm it is **not** blocked with `30034`. Approval of the
-   Campaign and correct sender-pool membership are two different things; only a delivered
-   message proves both.
+1. **Top up the balance and enable auto-recharge.** The suspension is what stopped all
+   sending on 2026-10-15; without auto-recharge it will recur. Campaign registration fees
+   drew the balance down right after submission.
+2. **Add +1 415 969 2088 to the sender pool** of Messaging Service
+   `MG8e48aec3657726f814310fd9ba406db1`. Twilio's approval email states this explicitly —
+   an approved Campaign with no number attached still returns `30034`.
+3. **Set the inbound webhook on the Messaging Service**, not just the number. Now that the
+   number sits in a Messaging Service, Twilio routes inbound via
+   **Messaging Service → Integration**. Point it at
+   `https://hook.us2.make.com/ddlsy3q3kseacijjnowye2emc5h691el` (HTTP POST). The webhook
+   configured on the number alone will be ignored.
+4. **Confirm Advanced Opt-Out** (Messaging → Services → Opt-Out Management). If it is off,
+   Twilio sends its own STOP/HELP wording rather than the copy registered in this pack.
+5. **Verify delivery resumes** — this is now a single query, not guesswork:
+   ```sql
+   select * from public.checkin_delivery_health();
+   ```
+   `healthy = true` means beats are being claimed *and* delivered. Anything else prints why.
+6. **Prove inbound** — have a US contact text +1 415 969 2088, then:
+   ```sql
+   select count(*) filter (where twilio_sid ~ '^SM[0-9a-f]{32}$') as real_sids
+   from public.messages where direction = 'inbound';
+   ```
+   This has been `0` for the life of the project. A non-zero result is the first proof that
+   a real handset can reach the AI Brain.
+7. **Send one US-bound reply** and confirm it is not blocked with `30034`. Campaign approval
+   and sender-pool membership are different things; only a delivered message proves both.

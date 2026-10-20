@@ -243,6 +243,30 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   and note that the `onerror` guards which keep the queue healthy also hide this failure —
   compare the operation count against a known-good run to spot it.
 
+- **`onerror → Ignore` turns a total outage into a silent one.** The daily check-in cron
+  kept reporting SUCCESS for five days while delivering nothing: Twilio was failing (account
+  suspended for low balance), the `Ignore` guard swallowed it, the route ended before the
+  logging step, and `scheduled_messages.status` already said `'sent'` because it was written
+  at *claim* time, not delivery time. Every signal we had said healthy. The tell was the
+  **operation count — 7 instead of 8**; compare against a known-good run. Fixed by claiming
+  as `'pending'` and letting a trigger on `messages` flip it to `'sent'` only when the
+  outbound message is genuinely logged, plus `checkin_delivery_health()` as one honest query.
+  **Rule: never let a status field be written by the step that *starts* an action — only by
+  the step that *confirms* it.**
+- **A health check that can report green during a known outage is worse than none.** The
+  first version of `checkin_delivery_health()` only counted stuck `pending` rows, so once the
+  dead beats were correctly marked `failed` it cheerfully returned `healthy = true` with
+  6 claimed and 0 delivered. Always test a health check *against the failure it exists to
+  catch*, not just against the happy path.
+- **An approved A2P Campaign does not mean you can send.** Twilio's own approval email says
+  sending begins "by adding phone numbers to the linked messaging service". An approved
+  Campaign with an empty sender pool still returns `30034`. Approval, sender-pool membership
+  and a funded account are three separate gates; only a delivered message proves all three.
+- **Twilio suspends the whole account for low balance, not just the failing send.** Campaign
+  registration fees drew the balance down immediately after submission and took every flow
+  down with it — including non-US traffic, which is otherwise unaffected by A2P. Keep
+  auto-recharge on; a prepaid balance is a single point of failure for the entire product.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

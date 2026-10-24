@@ -322,3 +322,38 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
 
 Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a local
 `.env` (gitignored) — never in this file, never committed.
+
+- **Ban the em dash deterministically, not just in the prompt.** Asking the model for plain
+  ASCII lowers the rate but cannot guarantee it, and every slip roughly doubles that message's
+  cost. The character census over all UCS-2 traffic was unambiguous: em dash U+2014 x40 and
+  en dash U+2013 x2 were the *only* punctuation offenders -- no curly quotes, no ellipsis, no
+  nbsp -- the rest was emoji (24 across 11 kinds), which is a deliberate product choice. So the
+  send path now wraps every outbound body in a literal two-step replace:
+  ```
+  {{replace(replace(<body>; "—"; "-"); "–"; "-")}}
+  ```
+  applied in both the Twilio module and the matching log module of both scenarios, so the DB
+  records what was actually sent. Prompt rules stay as a second line of defence; emoji are left
+  to the prompt on purpose. Census query:
+  ```sql
+  with chars as (select regexp_split_to_table(regexp_replace(body,'[\x01-\x7F]','','g'),'') ch
+                   from public.messages where direction='outbound' and body ~ '[^\x01-\x7F]')
+  select ch, to_hex(ascii(ch)) codepoint, count(*) from chars group by ch order by 3 desc;
+  ```
+- **Hardcoded fallback strings are outbound messages too, and they were the worst offenders.**
+  The AI Brain's error fallback read `"Oops — my brain glitched for a sec 😅 ..."` -- an em dash
+  *and* an emoji in a 74-character string, i.e. 2 UCS-2 segments every time an error fired. A
+  prompt rule can never reach a string that lives in the blueprint. Audit literal `body:` values
+  in the Make blueprint whenever auditing encoding, not just the prompts.
+- **An order-of-modules choice decides what you can test when a dependency is down.** The AI
+  Brain writes to the DB (module 8) *before* sending (module 9), so its reply is observable even
+  with Twilio suspended -- which is how the sanitizer got verified. The check-in scenario is the
+  reverse (send, then log) because that ordering is what makes `scheduled_messages.status` honest.
+  The cost is that its send path cannot be verified while Twilio is down: a failed send ends the
+  route via `onerror -> Ignore` and nothing reaches the log. Do not "fix" this by moving the log
+  earlier -- that re-introduces the silent-outage bug. Verify it on the first live beat instead,
+  and use the operation count (8, not 7) as the tell.
+- **A check-in trigger that returns 3 operations means nothing was due, not that it failed.**
+  Webhook + `get_due_checkins` + feeder = 3, then the route ends because the feeder got an empty
+  array. Expect this whenever a beat for that local date is already claimed. 7-8 operations is a
+  real send; 3 is a no-op; 7 where 8 was expected is the silent-failure signature.

@@ -281,6 +281,31 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   at 1. The original `recalculate_streak()` used **UTC** for "today", the same bug class as
   the old protein-total function; it now uses the user's timezone.
 
+- **The em dash is the single most expensive character in the product.** SMS bills per
+  160-character GSM-7 segment, but **one** character outside the GSM-7 alphabet forces the
+  whole message into UCS-2 at **70 characters per segment**. Measured on 72 real outbound
+  messages: **74% were UCS-2**, costing 163 segments where plain text would have cost 95 —
+  **42% of all SMS spend wasted**. The cause was not mainly emoji: the em dash `—` appeared
+  in **40 of 72 messages** (emoji in far fewer), and it is invisible, adds nothing a hyphen
+  does not, and Claude writes it by default. Curly quotes `'` `"` and the ellipsis `…` are
+  the same trap. Both system prompts now carry an explicit plain-ASCII billing rule.
+  Verified: a typical reply dropped from 2 segments to 1. Check any new prompt with:
+  ```sql
+  select body from public.messages
+   where direction='outbound' and body ~ '[^\x01-\x7F]' order by created_at desc limit 20;
+  ```
+- **Destination dominates everything else.** India is roughly **$0.083/segment** against
+  roughly **$0.0079** for US A2P — about **10x**. Every outbound message in the project's
+  history went to the +91 test number, so 163 segments cost ~$13.50 instead of ~$1.30. One
+  Indian test user on 3 check-ins a day is **~$17/month**; the same user on a US number with
+  plain text is **~$0.92/month**. Test against a US number wherever possible, and never leave
+  automated daily check-ins pointed at an international number.
+- **Prompt changes must be applied in both places.** The drug-name ban added to
+  `ai_brain_system_prompt()` on 2026-10-15 was missed in the **daily check-in prompt**, which
+  lives in the Make scenario rather than the database and still named all four drugs and
+  injected `Medication:` into its context. There are two prompts; a rule that matters belongs
+  in both. Grep the Make blueprint, not just the SQL, when auditing prompt policy.
+
 ## How Pankaj wants this worked
 
 - **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just

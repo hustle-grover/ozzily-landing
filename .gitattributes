@@ -1,0 +1,4 @@
+# The schema snapshot in supabase/schema/ is verified by md5 against the live
+# database, so it must stay byte-identical. CRLF conversion would break that.
+*.sql text eol=lf
+*.md  text eol=lf

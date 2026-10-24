@@ -1,0 +1,20 @@
+# Secrets. CLAUDE.md states these live in a local .env -- this repository is
+# PUBLIC, so nothing resembling a key may ever be committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tooling
+node_modules/
+.vercel/
+.supabase/
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

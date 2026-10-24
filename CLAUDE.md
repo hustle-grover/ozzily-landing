@@ -357,3 +357,50 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   Webhook + `get_due_checkins` + feeder = 3, then the route ends because the feeder got an empty
   array. Expect this whenever a beat for that local date is already claimed. 7-8 operations is a
   real send; 3 is a no-op; 7 where 8 was expected is the silent-failure signature.
+
+- **`message_kind` must describe the row it sits on, and a `*_photo` kind is a claim that
+  needs checking.** Three bugs compounded here. (1) `apply_ai_turn()` wrote the model's
+  classification onto the **outbound** reply and hardcoded the **inbound** row to
+  `freeform`/`onboarding` -- so `meal_photo` always landed on a message that by definition
+  carries no media, while the rows actually holding `media_url` and `detected_protein_g` were
+  all `freeform`. The inbound row is the one carrying the content facts, so it is the row the
+  classification belongs on. (2) Nothing verified a photo existed, so a text-described meal was
+  logged `meal_photo`; the fix **demotes only** (`meal_photo` -> `meal_log`, `workout_photo` ->
+  `workout_log`) and never promotes, because media does not imply a meal -- an inbound photo
+  asking "what colour is this square?" is not a `meal_photo`. (3) The prompt offered the model
+  `midday_checkin` / `evening_checkin` / `recap`, and `mark_checkin_delivered()` fires on
+  outbound beat kinds -- so a reply labelled `recap` would flip a **pending**
+  `scheduled_messages` row to `'sent'` with nothing sent. Model-supplied labels are now
+  whitelisted against a conversational set that excludes all four beats.
+  **Rule: never let a model-chosen value reach a field that a trigger treats as proof.**
+- **Check a label against the evidence column, not just the enum.** A `CHECK` constraint
+  accepted `meal_photo` happily because the enum is per-value, not relational. The query that
+  actually finds this class of bug compares the label against the fact it asserts:
+  ```sql
+  select message_kind, direction, count(*),
+         count(*) filter (where media_url is not null) as with_media
+    from public.messages group by 1,2 order by 1,2;
+  ```
+  A `*_photo` row with `with_media = 0` is a lie by construction.
+- **Rewrite a long prompt by asserted substring replacement, never by retranscribing it.**
+  `ai_brain_system_prompt()` is ~80 lines; retyping it to change one line risks silent drift.
+  Read the function's own output, `replace()` the exact substrings, `raise exception` if any
+  target is not found verbatim or the result is unchanged, then `create or replace` from the
+  result. A `replace()` that misses is a silent no-op, which is the failure mode to guard.
+- **`create or replace function` preserves the existing ACL**, so it will happily carry a
+  `PUBLIC` grant forward. `ai_brain_system_prompt()` had `proacl = {=X/postgres,...}` -- the
+  leading `=X` is PUBLIC -- making the whole system prompt readable by `anon` over
+  `/rest/v1/rpc/`. Every other function was correctly locked down; this one was missed because
+  the default grant is invisible unless you look for it. Audit with:
+  ```sql
+  select p.proname, p.proacl::text
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind = 'f'
+     and (p.proacl is null or has_function_privilege('anon', p.oid, 'EXECUTE'));
+  ```
+  An empty result is the only acceptable answer. Note `get_advisors` did **not** flag this.
+- **The database schema is not in this repo.** Every function and constraint lives only in
+  Supabase and its migration history; `find . -name '*.sql'` returns nothing. So a prompt or
+  function change cannot be reviewed in a diff or rolled back with git, and grepping the repo
+  for `message_kind` finds one stale mention in ROADMAP.md and none of the real definitions.
+  Treat Supabase migrations as the source of truth and name them descriptively.

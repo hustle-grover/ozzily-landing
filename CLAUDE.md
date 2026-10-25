@@ -421,3 +421,19 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   Make hook URLs are already committed in `index.html`, `login.html` and the A2P doc — the
   first two unavoidably, since the browser posts to them — so treat those endpoints as
   public and guard on payload shape, never on the URL being secret.
+
+- **The reply cap must be 160, not a round number near it.** A GSM-7 SMS holds exactly
+  **160** characters in one segment; past that the message becomes multipart at **153** per
+  segment, so a 161-character message costs precisely double a 160-character one. The cap was
+  set to 200 on 2026-10-24, which sits on the wrong side of that cliff and guaranteed 2
+  segments for any reply over 160. Measured on ASCII-clean outbound traffic: **26% exceeded
+  160 characters**, costing 29 segments where 23 would have done -- a further **21% overspend
+  on top of the UCS-2 fix**, from a cap that looked like a tightening. Both prompts now say
+  160 and explain why, since a bare number reads as style guidance and gets rounded up.
+  Encoding and length are two independent segment multipliers; fixing one proves nothing
+  about the other. Check with:
+  ```sql
+  select count(*) filter (where length(body) > 160) as over_160, count(*) as total
+    from public.messages
+   where direction='outbound' and body is not null and body !~ '[^\x01-\x7F]';
+  ```

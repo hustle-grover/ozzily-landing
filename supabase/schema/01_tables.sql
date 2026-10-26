@@ -32,15 +32,16 @@ create table public.messages (
 create table public.payments (
   id                       uuid not null default gen_random_uuid(),
   user_id                  uuid not null,
-  stripe_event_id          text,
-  stripe_payment_intent_id text,
-  stripe_invoice_id        text,
+  provider_event_id        text,
+  provider_transaction_id  text,
+  provider_invoice_id      text,
   amount_cents             integer not null,
   currency                 text not null default 'usd'::text,
   status                   text not null,
   plan                     text,
   failure_reason           text,
-  created_at               timestamp with time zone not null default now()
+  created_at               timestamp with time zone not null default now(),
+  provider                 text not null default 'paddle'::text
 );
 
 create table public.scheduled_messages (
@@ -87,8 +88,8 @@ create table public.users (
   subscription_status      text not null default 'trial'::text,
   trial_start              timestamp with time zone not null default now(),
   trial_end                timestamp with time zone not null default (now() + '3 days'::interval),
-  stripe_customer_id       text,
-  stripe_subscription_id   text,
+  provider_customer_id     text,
+  provider_subscription_id text,
   plan                     text,
   intensity_level          text not null default 'steady'::text,
   current_streak           integer not null default 0,
@@ -103,7 +104,8 @@ create table public.users (
   updated_at               timestamp with time zone not null default now(),
   consent_at               timestamp with time zone,
   consent_text             text,
-  weight_kg                numeric(5,1)
+  weight_kg                numeric(5,1),
+  last_billing_event_at    timestamp with time zone
 );
 
 -- ----------------------------------------------------------- constraints
@@ -116,10 +118,11 @@ alter table public.messages add constraint messages_pkey PRIMARY KEY (id);
 alter table public.messages add constraint messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 alter table public.messages add constraint messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text])));
 alter table public.messages add constraint messages_message_kind_check CHECK ((message_kind = ANY (ARRAY['onboarding'::text, 'morning_checkin'::text, 'midday_checkin'::text, 'evening_checkin'::text, 'recap'::text, 'meal_photo'::text, 'workout_photo'::text, 'meal_log'::text, 'workout_log'::text, 'side_effect'::text, 'billing'::text, 'system'::text, 'freeform'::text])));
-alter table public.payments add constraint payments_stripe_event_id_key UNIQUE (stripe_event_id);
+alter table public.payments add constraint payments_provider_event_id_key UNIQUE (provider_event_id);
 alter table public.payments add constraint payments_pkey PRIMARY KEY (id);
 alter table public.payments add constraint payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 alter table public.payments add constraint payments_plan_check CHECK ((plan = ANY (ARRAY['monthly'::text, 'annual'::text])));
+alter table public.payments add constraint payments_provider_check CHECK ((provider = ANY (ARRAY['paddle'::text, 'stripe'::text, 'razorpay'::text, 'manual'::text])));
 alter table public.payments add constraint payments_status_check CHECK ((status = ANY (ARRAY['succeeded'::text, 'failed'::text, 'refunded'::text, 'pending'::text])));
 alter table public.scheduled_messages add constraint scheduled_messages_pkey PRIMARY KEY (id);
 alter table public.scheduled_messages add constraint scheduled_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

@@ -207,6 +207,130 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_uid        uuid;
+  v_event      text := lower(btrim(coalesce(p_event_type,'')));
+  v_eid        text := nullif(btrim(coalesce(p_event_id,'')),'');
+  v_occurred   timestamptz := nullif(btrim(coalesce(p_occurred_at,'')),'')::timestamptz;
+  v_last       timestamptz;
+  v_sub_status text;
+  v_pay_status text;
+  v_amount     integer := nullif(btrim(coalesce(p_amount_cents,'')),'')::integer;
+  v_plan       text := lower(nullif(btrim(coalesce(p_plan,'')),''));
+  v_inserted   boolean := false;
+  v_applied    boolean := false;
+  v_skipped    text;
+  v_actual     text;
+begin
+  if v_eid is null then
+    return jsonb_build_object('ok', false, 'error', 'missing event id');
+  end if;
+
+  -- Resolve the user. custom_data.user_id on the checkout is the primary link:
+  -- Ozzily never collects an email, so the Paddle customer cannot be matched that way.
+  v_uid := nullif(btrim(coalesce(p_user_id,'')),'')::uuid;
+
+  if v_uid is null and nullif(btrim(coalesce(p_provider_subscription_id,'')),'') is not null then
+    select id into v_uid from public.users
+     where provider_subscription_id = btrim(p_provider_subscription_id) limit 1;
+  end if;
+
+  if v_uid is null and nullif(btrim(coalesce(p_provider_customer_id,'')),'') is not null then
+    select id into v_uid from public.users
+     where provider_customer_id = btrim(p_provider_customer_id) limit 1;
+  end if;
+
+  if v_uid is null or not exists (select 1 from public.users where id = v_uid) then
+    -- Do not invent an orphan payment row: payments.user_id is NOT NULL with an FK.
+    -- Returning instead of raising lets the scenario alert without tripping maxErrors.
+    return jsonb_build_object('ok', false, 'error', 'user not resolved',
+                              'event_id', v_eid, 'event_type', v_event);
+  end if;
+
+  v_sub_status := case
+    when v_event in ('subscription.activated','subscription.created','subscription.resumed',
+                     'transaction.completed')                      then 'active'
+    when v_event in ('subscription.canceled','subscription.cancelled') then 'cancelled'
+    when v_event in ('subscription.past_due','transaction.payment_failed') then 'past_due'
+    when v_event = 'subscription.paused'                            then 'paused'
+    else null
+  end;
+
+  v_pay_status := case
+    when v_event = 'transaction.completed'      then 'succeeded'
+    when v_event = 'transaction.payment_failed' then 'failed'
+    when v_event = 'adjustment.updated'         then 'refunded'
+    else null
+  end;
+
+  -- 1. Record money events. UNIQUE provider_event_id makes a Paddle retry a no-op
+  --    rather than a duplicate charge record.
+  if v_pay_status is not null then
+    insert into public.payments
+      (user_id, provider, provider_event_id, provider_transaction_id,
+       amount_cents, currency, status, plan, failure_reason)
+    values
+      (v_uid, 'paddle', v_eid, nullif(btrim(coalesce(p_provider_transaction_id,'')),''),
+       coalesce(v_amount, 0), coalesce(nullif(lower(btrim(coalesce(p_currency,''))),''), 'usd'),
+       v_pay_status,
+       case when v_plan in ('monthly','annual') then v_plan else null end,
+       nullif(btrim(coalesce(p_failure_reason,'')),''))
+    on conflict (provider_event_id) do nothing;
+
+    v_inserted := found;
+  end if;
+
+  -- 2. Provider ids are facts, not state, so always keep them.
+  update public.users u set
+    provider_customer_id     = coalesce(nullif(btrim(coalesce(p_provider_customer_id,'')),''),
+                                        u.provider_customer_id),
+    provider_subscription_id = coalesce(nullif(btrim(coalesce(p_provider_subscription_id,'')),''),
+                                        u.provider_subscription_id),
+    updated_at               = now()
+   where u.id = v_uid;
+
+  -- 3. Apply the status change only if this event is newer than the last one applied.
+  if v_sub_status is null then
+    v_skipped := 'event type carries no subscription status change';
+  else
+    select last_billing_event_at into v_last from public.users where id = v_uid;
+
+    if v_occurred is not null and v_last is not null and v_occurred <= v_last then
+      v_skipped := 'event is not newer than the last applied event (retry, or out-of-order delivery)';
+    else
+      update public.users u set
+        subscription_status   = v_sub_status,
+        plan                  = case when v_plan in ('monthly','annual') then v_plan else u.plan end,
+        last_billing_event_at = coalesce(v_occurred, now()),
+        updated_at            = now()
+       where u.id = v_uid;
+      v_applied := true;
+    end if;
+  end if;
+
+  -- Read the row back so the caller is told what IS, never what was intended.
+  select subscription_status into v_actual from public.users where id = v_uid;
+
+  return jsonb_build_object(
+    'ok', true,
+    'user_id', v_uid,
+    'event_type', v_event,
+    'payment_recorded', v_inserted,
+    'status_change_applied', v_applied,
+    'mapped_status', coalesce(v_sub_status, '(none)'),
+    'subscription_status', v_actual,          -- actual, read back after the write
+    'skipped_reason', v_skipped
+  );
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.build_ai_request(p_phone text, p_body text DEFAULT NULL::text, p_media_url text DEFAULT NULL::text, p_media_type text DEFAULT NULL::text, p_media_b64 text DEFAULT NULL::text)
  RETURNS TABLE(user_id uuid, request_json text)
  LANGUAGE sql
@@ -382,6 +506,39 @@ begin
   get diagnostics n = row_count;
   return n;
 end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_billing_due()
+ RETURNS TABLE(id uuid, phone text, first_name text, plan text, trial_end timestamp with time zone, hours_left numeric, local_date date)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with eligible as (
+    select u.*,
+           (now() at time zone coalesce(nullif(u.timezone,''),'America/New_York'))::date as local_date,
+           round(extract(epoch from (u.trial_end - now())) / 3600.0, 1) as hours_left
+      from public.users u
+     where u.subscription_status = 'trial'
+       and u.onboarding_step = 'complete'
+       and coalesce(u.sms_opted_out,false) = false
+       and u.phone is not null and u.phone <> ''
+       and u.trial_end is not null
+       -- inside the last 24h of trial, and not already past it
+       and u.trial_end > now()
+       and u.trial_end <= now() + interval '24 hours'
+  ),
+  claimed as (
+    insert into public.scheduled_messages (user_id, message_kind, local_date, scheduled_for, status, sent_at)
+    select e.id, 'billing', e.local_date, now(), 'pending', null
+      from eligible e
+    on conflict (user_id, message_kind, local_date) do nothing
+    returning user_id
+  )
+  select e.id, e.phone, e.first_name, e.plan, e.trial_end, e.hours_left, e.local_date
+    from eligible e
+    join claimed c on c.user_id = e.id;
 $function$
 ;
 
@@ -640,7 +797,7 @@ CREATE OR REPLACE FUNCTION public.mark_checkin_delivered()
 AS $function$
 begin
   if new.direction = 'outbound'
-     and new.message_kind in ('morning_checkin','midday_checkin','evening_checkin','recap') then
+     and new.message_kind in ('morning_checkin','midday_checkin','evening_checkin','recap','billing') then
     update public.scheduled_messages s
        set status = 'sent', sent_at = now()
      where s.id = (
@@ -831,6 +988,8 @@ revoke all on function public.ai_brain_system_prompt() from public, anon, authen
 grant execute on function public.ai_brain_system_prompt() to service_role;
 revoke all on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) from public, anon, authenticated;
 grant execute on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) to service_role;
+revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text) from public, anon, authenticated;
+grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text) to service_role;
 revoke all on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) from public, anon, authenticated;
 grant execute on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) to service_role;
 revoke all on function public.checkin_delivery_health() from public, anon, authenticated;
@@ -839,6 +998,8 @@ revoke all on function public.count_due_checkins() from public, anon, authentica
 grant execute on function public.count_due_checkins() to service_role;
 revoke all on function public.expire_lapsed_trials() from public, anon, authenticated;
 grant execute on function public.expire_lapsed_trials() to service_role;
+revoke all on function public.get_billing_due() from public, anon, authenticated;
+grant execute on function public.get_billing_due() to service_role;
 revoke all on function public.get_due_checkins() from public, anon, authenticated;
 grant execute on function public.get_due_checkins() to service_role;
 revoke all on function public.get_inbound_context(p_phone text) from public, anon, authenticated;

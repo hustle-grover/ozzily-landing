@@ -437,3 +437,40 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
     from public.messages
    where direction='outbound' and body is not null and body !~ '[^\x01-\x7F]';
   ```
+
+- **Payments go through Paddle, a merchant of record — and the reason is tax, not fees.**
+  Stripe is not unavailable to an Indian company, it is *invite-only*. The decisive factor is
+  that **SaaS is taxable in 20+ US states**, so selling a 29/month subscription direct to US
+  consumers accrues economic nexus. Razorpay (~3% + GST) and PayPal both leave that liability
+  with us; Paddle (~5% + 50c) becomes the legal seller of record and handles it, pays USD to
+  an Indian bank, and needs no US entity. The premium is under 1/month per subscriber.
+  GST/FEMA export-of-services treatment is a question for the CA, and Paddle's India payout
+  specifics are not on an official Paddle page — confirm both before launch.
+- **A Paddle user is linked by `custom_data.user_id` on the checkout, never by email.**
+  Ozzily collects only a phone number at signup, so there is no email to match a Paddle
+  customer against. `apply_payment_event()` resolves in that order: `user_id`, then
+  `provider_subscription_id`, then `provider_customer_id`, and returns `ok:false` rather than
+  inventing an orphan row (`payments.user_id` is NOT NULL with an FK). It returns instead of
+  raising, so the scenario can alert without tripping `maxErrors`.
+- **Paddle retries webhooks and can deliver out of order, so two separate guards are needed.**
+  `provider_event_id` is UNIQUE and is the idempotency key, which makes a retry a no-op rather
+  than a duplicate charge record. Separately, status changes are gated on `occurred_at` being
+  newer than `users.last_billing_event_at`, so a replayed `subscription.canceled` cannot
+  overwrite a later `subscription.resumed`. Verified against both failures rather than the
+  happy path: a stale cancel left the user `active`, and a replayed payment produced one row.
+- **The same "reports an intention, not an outcome" bug reappeared in my own new code.**
+  `apply_payment_event()` first returned the status it had *mapped from the event* rather than
+  the status *actually applied*, so a correctly-ignored out-of-order cancel reported
+  `subscription_status: cancelled` while the user remained `active`. It now reads the row back
+  after writing and returns `status_change_applied` plus a `skipped_reason`. This is the third
+  instance of the class in this project, after `scheduled_messages.status` and the
+  `message_kind` label. **Any function that reports what it did must read back what is true.**
+- **The welcome SMS was the worst encoding offender in the product and had never been audited**,
+  because it is a hardcoded string in the Signup Flow blueprint rather than a prompt. It
+  carried a wave emoji *and* an em dash in 308 characters — **5 UCS-2 segments where 3 would
+  do** — on the one message every single user receives. It is **all-or-nothing**: removing only
+  the em dash saves nothing while the emoji still forces UCS-2. Rewritten to plain ASCII and
+  trimmed to 302 characters, which crosses the 306 boundary into **2 segments, down from 5**.
+  All four compliance elements were preserved (frequency, rates, STOP, HELP), so the registered
+  A2P sample still matches in substance. Check any rewrite against both length and compliance,
+  not just encoding.

@@ -474,3 +474,20 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   All four compliance elements were preserved (frequency, rates, STOP, HELP), so the registered
   A2P sample still matches in substance. Check any rewrite against both length and compliance,
   not just encoding.
+- **Check the execution record before believing a failure rate, including one you stated
+  yourself.** The AI Brain's JSON parse step was carried for days as "2 of 4 test messages
+  failed" — a watch item written into this file. The actual record shows **one** ParseJSON
+  error in the scenario's entire history (2026-10-20 05:31), and the very next event that same
+  second is the Twilio `20003` suspension warning: that was the *unfailable-fallback* bug, not
+  a parser problem, and every run since has been 9 operations SUCCESS. `executions_list` gives
+  `operations`, `displayStatus` and `error.causeModule` per run, which is the cheapest honest
+  answer available — use it before escalating a brittleness into a defect.
+- **The parse step now extracts the first `{` to the last `}` as well as stripping fences.**
+  The mapper is
+  `replace(replace(replace(replace(join(map(5.content;"text");""); "```json";""); "```";""); "/^[^{]*/";""); "/[^}]*$/";"")`
+  — the two regex passes are **additive on top of** the fence stripping on purpose, so that if
+  Make's regex syntax ever fails to match, the result silently degrades to the previous
+  behaviour instead of regressing. It tolerates a prose preamble, trailing commentary, and any
+  fence variant. Verified non-regressive (9 ops, reply logged, `meal_log` + protein on the
+  inbound row); the robustness gain is reasoned rather than proven, since a malformed model
+  response cannot be forced on demand.

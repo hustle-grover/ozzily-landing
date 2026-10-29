@@ -491,3 +491,45 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   fence variant. Verified non-regressive (9 ops, reply logged, `meal_log` + protein on the
   inbound row); the robustness gain is reasoned rather than proven, since a malformed model
   response cannot be forced on demand.
+
+- **Make cannot verify a webhook signature, and Paddle's destination must be an Edge
+  Function.** Paddle signs `ts + ":" + raw_request_body` with HMAC-SHA256 over the **raw
+  bytes**. Make's gateway webhook parses the JSON and re-serializes it, so no Make module
+  ever sees the bytes that were signed — key order and whitespace differ and the HMAC can
+  never match. Make *does* have HMAC (`sha256(text; key)`), so the temptation is real, but
+  the payload it would hash is not the payload Paddle signed. The receiver is therefore
+  `supabase/functions/paddle-webhook`, which reads `await req.text()` before anything
+  parses it. The Make hook that was created first (id 2997965) is **not** Paddle's
+  destination; it is reserved for the outbound "payment received" SMS. This generalises:
+  **any provider that signs a raw body cannot be verified inside Make.**
+- **`verify_jwt = false` is correct for a provider webhook, because the signature is the
+  authentication.** Paddle sends no Supabase JWT, so requiring one would reject every real
+  event. The HMAC replaces it. The rule from the `ai-request` function still holds in the
+  other direction: `verify_jwt` alone was never authorization either.
+- **Fail closed when the signing secret is missing.** `paddle-webhook` rejects with 401 when
+  `PADDLE_WEBHOOK_SECRET` is unset, rather than passing events through unverified. Verified
+  live: unsigned, malformed-header and wrong-signature requests all return 401, and a GET
+  returns 405.
+- **A signature check needs a replay window, and the timestamp must be inside the signed
+  payload.** Rejecting a stale `ts` (300s default) stops a captured request being replayed
+  forever, and because `ts` is part of what is signed, an attacker cannot refresh it to dodge
+  the window — rewriting `ts` breaks `h1`. Proven both ways. **Note the test that first
+  appeared to show a bypass was wrong:** it generated the old and new timestamps in the same
+  second, so the signature legitimately matched. Re-run with a genuinely old `ts` before
+  believing either a pass or a failure.
+- **Return 2xx for a verified-but-unusable event, non-2xx only for a transient fault.**
+  Paddle retries on non-2xx. An event whose user cannot be resolved will never resolve, so it
+  returns 200 and is logged; a failed RPC returns 500 so Paddle retries. Getting this backwards
+  gives either an infinite retry loop or silently dropped payments.
+- **The trial model is Option A: the 3-day trial runs over SMS, not in Paddle.** Paddle's own
+  trial collects the card at checkout, which contradicts four published claims of "no card
+  required" (twice in `terms.html`, twice in `index.html`) on a live, A2P-registered site. So
+  both Paddle prices carry **no trial**, `/pay` is texted on day 4, and Paddle charges
+  immediately at checkout. **If a trial is ever added to a Paddle price, remove the SMS trial
+  in the same change** — otherwise the customer gets six free days and the first charge lands
+  on day 7, which is the kind of mismatch that only surfaces as a wrong charge date weeks later.
+- **`/pay` refuses a checkout it cannot attribute.** `pay.html` opens Paddle only with a valid
+  uuid `uid`, which becomes `custom_data.user_id`. Signup collects no email, so that is the
+  only link between a Paddle customer and an Ozzily user — an unlinkable payment charges
+  someone we cannot match, which is worse than no payment. `_ptxn` is exempt because that
+  transaction already carries its own `custom_data`.

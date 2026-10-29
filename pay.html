@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Checkout — Ozzily</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#FDF4F1; color:#3B2E5A; font-family:'Plus Jakarta Sans', system-ui, sans-serif; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  *{ box-sizing:border-box; }
+  /* An author `display` declaration beats the UA stylesheet's [hidden]{display:none},
+     so .plans{display:grid} silently defeated the hidden attribute. Enforce it once
+     here rather than per-element. */
+  [hidden]{ display:none !important; }
+  a{ color:#C97614; }
+  h1{ font-family:'Baloo 2', cursive; font-weight:800; font-size:clamp(26px,6vw,34px); margin:0 0 10px; line-height:1.15; }
+  :focus-visible{ outline:3px solid #C97614; outline-offset:3px; border-radius:8px; }
+
+  .wrap{ max-width:460px; margin:0 auto; padding:40px 22px 64px; }
+  .logo{ display:flex; align-items:center; gap:9px; font-family:'Baloo 2'; font-weight:800; font-size:22px; color:#3B2E5A; text-decoration:none; margin-bottom:28px; }
+  .logo-badge{ width:28px; height:28px; border-radius:999px; background:linear-gradient(140deg,#FFC170,#F1801F); }
+
+  .card{ background:#FFFDF9; border:1px solid rgba(59,46,90,0.08); border-radius:20px; padding:24px 22px; }
+  p{ margin:0 0 14px; color:#5A4A7D; font-size:16px; }
+  .muted{ font-size:14px; color:#6B5D8A; }
+
+  .plans{ display:grid; gap:12px; margin:18px 0 6px; }
+  .plan{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+         width:100%; text-align:left; cursor:pointer;
+         background:#FFF; border:2px solid rgba(59,46,90,0.12); border-radius:14px;
+         padding:16px 18px; font-family:inherit; font-size:16px; font-weight:600; color:#3B2E5A; }
+  .plan:hover{ border-color:#F1801F; }
+  .plan .price{ font-family:'Baloo 2'; font-weight:800; font-size:20px; white-space:nowrap; }
+  .plan .save{ display:block; font-size:13px; font-weight:600; color:#C97614; margin-top:2px; }
+
+  .status{ border-radius:14px; padding:16px 18px; margin:18px 0 0; font-size:15px; }
+  .status[data-kind="error"]{ background:#FDE8E8; border:1px solid rgba(176,42,42,0.3); color:#8A1F1F; }
+  .status[data-kind="ok"]{ background:#E8F0E2; border:1px solid rgba(111,156,92,0.35); color:#2F4A26; }
+  .status[data-kind="info"]{ background:#FFF1DE; border:1px solid rgba(255,159,67,0.3); color:#8A5A17; }
+  .status[hidden]{ display:none; }
+  .status strong{ display:block; margin-bottom:4px; }
+
+  footer{ margin-top:26px; font-size:13px; color:#6B5D8A; text-align:center; }
+  footer a{ color:#6B5D8A; }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <a href="/" class="logo"><span class="logo-badge" aria-hidden="true"></span>Ozzily</a>
+
+  <div class="card">
+    <h1 id="heading">Finish setting up</h1>
+    <p id="intro">One step and your coach is live. Secure checkout is handled by Paddle.</p>
+
+    <div class="plans" id="plans" hidden>
+      <button class="plan" type="button" data-plan="monthly">
+        <span>Monthly<span class="save">Billed every month</span></span>
+        <span class="price">$29</span>
+      </button>
+      <button class="plan" type="button" data-plan="annual">
+        <span>Annual<span class="save">Works out cheaper per month</span></span>
+        <span class="price">$249</span>
+      </button>
+    </div>
+
+    <!-- Announced to screen readers when it changes, since the whole page is one status surface. -->
+    <div class="status" id="status" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <footer>
+    <a href="/terms.html">Terms</a> &middot; <a href="/privacy.html">Privacy</a>
+  </footer>
+</main>
+
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------- config
+  // The client-side token is PUBLIC by design: Paddle.js runs in the browser and
+  // this is the value it is meant to expose. It is not the API key -- the API key
+  // is server-side only and must never appear here.
+  // Swap both of these when moving from sandbox to production; keys and price ids
+  // are environment-specific and do not interchange.
+  var PADDLE_ENV          = "sandbox";                 // "sandbox" | "production"
+  var PADDLE_CLIENT_TOKEN = "PASTE_PADDLE_CLIENT_TOKEN_HERE";
+
+  var PRICE_IDS = {
+    monthly: "pri_01m632mtgmf8n9tcdshyhp8gr7",
+    annual:  "pri_01m632prc3s7s6538jh5d2237s"
+  };
+
+  // -------------------------------------------------------------- elements
+  var statusEl  = document.getElementById("status");
+  var plansEl   = document.getElementById("plans");
+  var headingEl = document.getElementById("heading");
+  var introEl   = document.getElementById("intro");
+
+  function say(kind, title, body) {
+    statusEl.setAttribute("data-kind", kind);
+    statusEl.innerHTML = "";
+    var strong = document.createElement("strong");
+    strong.textContent = title;
+    statusEl.appendChild(strong);
+    if (body) {
+      statusEl.appendChild(document.createTextNode(body));
+    }
+    statusEl.hidden = false;
+  }
+
+  // ----------------------------------------------------------------- query
+  var params = new URLSearchParams(window.location.search);
+  var ptxn   = (params.get("_ptxn") || "").trim();
+  var plan   = (params.get("plan")  || "").trim().toLowerCase();
+  var uid    = (params.get("uid")   || "").trim().toLowerCase();
+
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var hasValidUid = UUID_RE.test(uid);
+
+  // ------------------------------------------------------------ link check
+  // Validate the link BEFORE touching Paddle. A visitor with a broken link needs to
+  // hear that, not a configuration message -- and it keeps this page testable before
+  // the token is in place.
+  var LINK_ERROR = ["This link is missing its account reference.",
+                    "Please use the exact link Ozzily texted you, so we can connect the payment to your account."];
+
+  if (!ptxn && !plan && !hasValidUid) {
+    say("error", LINK_ERROR[0], LINK_ERROR[1]);
+    return;
+  }
+  if (!ptxn && plan && !hasValidUid) {
+    say("error", LINK_ERROR[0], LINK_ERROR[1]);
+    return;
+  }
+
+  // ----------------------------------------------------------------- paddle
+  if (typeof Paddle === "undefined") {
+    say("error", "Checkout could not load.",
+        "Please check your connection and reload. If it keeps happening, text us and we will sort it out.");
+    return;
+  }
+
+  if (PADDLE_CLIENT_TOKEN.indexOf("PASTE_") === 0) {
+    say("error", "Checkout is not configured yet.",
+        "The Paddle client-side token has not been set on this page.");
+    return;
+  }
+
+  Paddle.Environment.set(PADDLE_ENV);
+
+  Paddle.Initialize({
+    token: PADDLE_CLIENT_TOKEN,
+    eventCallback: function (ev) {
+      if (!ev || !ev.name) { return; }
+      if (ev.name === "checkout.completed") {
+        headingEl.textContent = "You're all set";
+        introEl.textContent   = "Ozzily will text you shortly. You can close this page.";
+        plansEl.hidden = true;
+        say("ok", "Payment confirmed.", "Nothing else to do here.");
+      } else if (ev.name === "checkout.error") {
+        say("error", "That payment did not go through.",
+            "Nothing has been charged. You can try again, or reply to Ozzily and we will help.");
+      }
+    }
+  });
+
+  function openForTransaction(txnId) {
+    headingEl.textContent = "Complete your payment";
+    introEl.textContent   = "Opening secure checkout...";
+    Paddle.Checkout.open({ transactionId: txnId });
+  }
+
+  function openForPlan(which) {
+    var priceId = PRICE_IDS[which];
+    if (!priceId) {
+      say("error", "Unknown plan.", "Please use the link Ozzily texted you.");
+      return;
+    }
+    // A checkout without custom_data.user_id produces a payment that cannot be
+    // matched to any user -- Ozzily collects no email, so there is no other link.
+    // Refusing is correct: an unlinkable payment is worse than no payment.
+    if (!hasValidUid) {
+      say("error", LINK_ERROR[0], LINK_ERROR[1]);
+      return;
+    }
+    Paddle.Checkout.open({
+      items: [{ priceId: priceId, quantity: 1 }],
+      customData: { user_id: uid },
+      settings: { displayMode: "overlay", theme: "light", allowLogout: false }
+    });
+  }
+
+  // ------------------------------------------------------------------ route
+  if (ptxn) {
+    // Paddle appends _ptxn when continuing an existing transaction, e.g. updating
+    // a failed payment. The transaction already carries its own custom_data.
+    openForTransaction(ptxn);
+  } else if (plan) {
+    openForPlan(plan);
+  } else {
+    plansEl.hidden = false;
+    say("info", "Pick a plan to continue.", "You can change or cancel any time by texting Ozzily.");
+  }
+
+  Array.prototype.forEach.call(plansEl.querySelectorAll("[data-plan]"), function (btn) {
+    btn.addEventListener("click", function () { openForPlan(btn.getAttribute("data-plan")); });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -207,7 +207,7 @@ end;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text, p_paddle_status text DEFAULT NULL::text, p_next_billed_at text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -218,8 +218,11 @@ declare
   v_event      text := lower(btrim(coalesce(p_event_type,'')));
   v_eid        text := nullif(btrim(coalesce(p_event_id,'')),'');
   v_occurred   timestamptz := nullif(btrim(coalesce(p_occurred_at,'')),'')::timestamptz;
+  v_next       timestamptz := nullif(btrim(coalesce(p_next_billed_at,'')),'')::timestamptz;
+  v_pstatus    text := lower(btrim(coalesce(p_paddle_status,'')));
   v_last       timestamptz;
   v_sub_status text;
+  v_source     text;
   v_pay_status text;
   v_amount     integer := nullif(btrim(coalesce(p_amount_cents,'')),'')::integer;
   v_plan       text := lower(nullif(btrim(coalesce(p_plan,'')),''));
@@ -227,6 +230,7 @@ declare
   v_applied    boolean := false;
   v_skipped    text;
   v_actual     text;
+  v_trial_end  timestamptz;
 begin
   if v_eid is null then
     return jsonb_build_object('ok', false, 'error', 'missing event id');
@@ -247,20 +251,41 @@ begin
   end if;
 
   if v_uid is null or not exists (select 1 from public.users where id = v_uid) then
-    -- Do not invent an orphan payment row: payments.user_id is NOT NULL with an FK.
-    -- Returning instead of raising lets the scenario alert without tripping maxErrors.
     return jsonb_build_object('ok', false, 'error', 'user not resolved',
                               'event_id', v_eid, 'event_type', v_event);
   end if;
 
-  v_sub_status := case
-    when v_event in ('subscription.activated','subscription.created','subscription.resumed',
-                     'transaction.completed')                      then 'active'
-    when v_event in ('subscription.canceled','subscription.cancelled') then 'cancelled'
-    when v_event in ('subscription.past_due','transaction.payment_failed') then 'past_due'
-    when v_event = 'subscription.paused'                            then 'paused'
-    else null
-  end;
+  -- Status resolution, in priority order.
+  -- 1. Paddle's own data.status is authoritative when supplied. Paddle spells the
+  --    cancelled state 'canceled' with one l; ours uses two.
+  v_sub_status := case v_pstatus
+                    when 'trialing' then 'trial'
+                    when 'active'   then 'active'
+                    when 'past_due' then 'past_due'
+                    when 'paused'   then 'paused'
+                    when 'canceled' then 'cancelled'
+                    else null
+                  end;
+  if v_sub_status is not null then
+    v_source := 'paddle data.status';
+  end if;
+
+  -- 2. Fall back to the event name. Note subscription.updated is deliberately absent:
+  --    it carries no implied status, so without data.status there is nothing to apply.
+  if v_sub_status is null then
+    v_sub_status := case
+      when v_event in ('subscription.activated','subscription.created',
+                       'subscription.resumed','transaction.completed')    then 'active'
+      when v_event = 'subscription.trialing'                             then 'trial'
+      when v_event in ('subscription.canceled','subscription.cancelled')  then 'cancelled'
+      when v_event in ('subscription.past_due','transaction.payment_failed') then 'past_due'
+      when v_event = 'subscription.paused'                               then 'paused'
+      else null
+    end;
+    if v_sub_status is not null then
+      v_source := 'event name';
+    end if;
+  end if;
 
   v_pay_status := case
     when v_event = 'transaction.completed'      then 'succeeded'
@@ -269,8 +294,8 @@ begin
     else null
   end;
 
-  -- 1. Record money events. UNIQUE provider_event_id makes a Paddle retry a no-op
-  --    rather than a duplicate charge record.
+  -- Record money events. UNIQUE provider_event_id makes a Paddle retry a no-op rather
+  -- than a duplicate charge record.
   if v_pay_status is not null then
     insert into public.payments
       (user_id, provider, provider_event_id, provider_transaction_id,
@@ -286,7 +311,7 @@ begin
     v_inserted := found;
   end if;
 
-  -- 2. Provider ids are facts, not state, so always keep them.
+  -- Provider ids are facts, not state, so always keep them.
   update public.users u set
     provider_customer_id     = coalesce(nullif(btrim(coalesce(p_provider_customer_id,'')),''),
                                         u.provider_customer_id),
@@ -295,18 +320,28 @@ begin
     updated_at               = now()
    where u.id = v_uid;
 
-  -- 3. Apply the status change only if this event is newer than the last one applied.
+  -- Apply the status change only if this event is newer than the last one applied.
   if v_sub_status is null then
-    v_skipped := 'event type carries no subscription status change';
+    v_skipped := case
+      when v_event = 'subscription.updated'
+        then 'subscription.updated carried no data.status, so no status could be applied'
+      else 'event type carries no subscription status change'
+    end;
   else
     select last_billing_event_at into v_last from public.users where id = v_uid;
 
     if v_occurred is not null and v_last is not null and v_occurred <= v_last then
       v_skipped := 'event is not newer than the last applied event (retry, or out-of-order delivery)';
     else
+      -- When Paddle says the subscription is trialing, Paddle owns the trial and
+      -- next_billed_at is the real charge date. Never overwrite a known trial_end
+      -- with null if the event omits it.
+      v_trial_end := case when v_sub_status = 'trial' then v_next else null end;
+
       update public.users u set
         subscription_status   = v_sub_status,
         plan                  = case when v_plan in ('monthly','annual') then v_plan else u.plan end,
+        trial_end             = coalesce(v_trial_end, u.trial_end),
         last_billing_event_at = coalesce(v_occurred, now()),
         updated_at            = now()
        where u.id = v_uid;
@@ -324,7 +359,9 @@ begin
     'payment_recorded', v_inserted,
     'status_change_applied', v_applied,
     'mapped_status', coalesce(v_sub_status, '(none)'),
-    'subscription_status', v_actual,          -- actual, read back after the write
+    'status_source', coalesce(v_source, '(none)'),
+    'subscription_status', v_actual,
+    'trial_end_set', v_trial_end,
     'skipped_reason', v_skipped
   );
 end;
@@ -525,6 +562,8 @@ AS $function$
        and coalesce(u.sms_opted_out,false) = false
        and u.phone is not null and u.phone <> ''
        and u.trial_end is not null
+       -- never chase someone who has already subscribed
+       and u.provider_subscription_id is null
        -- inside the last 24h of trial, and not already past it
        and u.trial_end > now()
        and u.trial_end <= now() + interval '24 hours'
@@ -988,8 +1027,8 @@ revoke all on function public.ai_brain_system_prompt() from public, anon, authen
 grant execute on function public.ai_brain_system_prompt() to service_role;
 revoke all on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) from public, anon, authenticated;
 grant execute on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) to service_role;
-revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text) from public, anon, authenticated;
-grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text) to service_role;
+revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text) from public, anon, authenticated;
+grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text) to service_role;
 revoke all on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) from public, anon, authenticated;
 grant execute on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) to service_role;
 revoke all on function public.checkin_delivery_health() from public, anon, authenticated;

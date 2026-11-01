@@ -121,16 +121,21 @@
 
     <div class="success" id="successView" role="status" aria-live="polite">
       <span class="tick">✅</span>
-      <p>Check your phone — Ozzily just texted you. Reply right there to pick up where you left off.</p>
+      <p>Ozzily is text-first, so there's nothing to log into. Just text us from that number and we'll pick up right where you left off.</p>
     </div>
   </div>
 </main>
 
 <script>
-  // Make.com "Ozzily Login" scenario (id 6333754): looks up the number and texts
-  // "welcome back" if found, or a sign-up nudge if not. Turn the scenario ON in Make
-  // for this to send. If left empty, the page still shows the confirmation UI.
-  const LOGIN_WEBHOOK_URL = 'https://hook.us2.make.com/k9upww5gdjleabl7v72cf1fotikcssz1';
+  // Deliberately EMPTY while the "Ozzily Login" scenario (6333754) is switched off,
+  // pending Twilio Verify. The submit handler guards on this, so the page validates the
+  // number and shows its confirmation without calling anything.
+  //
+  // Do not restore the URL without also reactivating the scenario: a deactivated Make
+  // scenario QUEUES every payload and replays the lot on reactivation, which would fire
+  // a burst of texts at everyone who ever used this page.
+  //   hook: https://hook.us2.make.com/k9upww5gdjleabl7v72cf1fotikcssz1
+  const LOGIN_WEBHOOK_URL = '';
 
   const form = document.getElementById('loginForm');
   const input = document.getElementById('phone');

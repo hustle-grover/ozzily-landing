@@ -533,3 +533,40 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   only link between a Paddle customer and an Ozzily user — an unlinkable payment charges
   someone we cannot match, which is worse than no payment. `_ptxn` is exempt because that
   transaction already carries its own `custom_data`.
+
+- **A `+` in a URL query string means SPACE, so an E.164 phone lookup must be `%2B`-encoded.**
+  The Login scenario queried `/rest/v1/users?phone=eq.{{1.phone}}` with `+919255435752`, so
+  PostgREST searched for `" 919255435752"` and **never matched**. The "Found" branch
+  therefore essentially never fired from the day it was built. Fixed with
+  `phone=eq.{{replace(1.phone; "+"; "%2B")}}`. **Audited 2026-11-01: this was the only
+  occurrence.** Every other phone lookup in the system puts the value in a POST body or an
+  RPC parameter, where JSON encoding handles it — Signup (`/rest/v1/users?on_conflict=phone`,
+  phone in the body; `on_conflict` is a column name, not a value), the AI Brain
+  (`/functions/v1/ai-request` and `/rest/v1/rpc/apply_ai_turn`, both bodies), Check-ins
+  (`/rest/v1/rpc/get_due_checkins`, empty body), and both Edge Functions (`p_phone` in JSON).
+  **The rule: never interpolate a phone number into a URL. Use a POST body or an RPC
+  parameter.** `pay.html` puts a uuid in a query string, which is safe only because a uuid
+  contains no `+`.
+- **Testing only the path you expect to break will certify a broken fix.** The leak fix was
+  verified with an unknown number (2 ops, no SMS — correct) and looked done. Testing the
+  *known* number showed 2 ops as well: a legitimate user got nothing, because of the `+` bug
+  above. **Always test the success path and the refusal path.** For a Make scenario the
+  operation count is the cheapest discriminator: Login is 3 ops for a real send and 2 for a
+  correct no-op.
+- **An "enumeration leak" was the wrong diagnosis; the real fault was an open SMS relay.**
+  Both old Login branches texted *the submitted number*, never the requester, so nothing
+  leaked to an attacker. What was actually there: the "not signed up" branch texted
+  *"Start your free 3-day trial at ozzily.com"* — a **promotional** message — to any number
+  typed into a public form, with no consent, billed to us, on a campaign registered as
+  informational. Combined with the `+` bug, **every** login attempt took that branch, so the
+  spam went to real customers too. Route deleted: unknown numbers now receive nothing.
+  **Diagnose from the blueprint, not from the documentation describing it.**
+- **A publicly triggerable "send a text to this user" endpoint is an abuse vector even when
+  it only texts known users.** After the fix, anyone who knows a customer's number can still
+  make us text them repeatedly, at our cost. There is no rate limit on the Login hook. This
+  is why the page should be switched off until Verify ships rather than merely corrected.
+- **Signup has the same missing-ownership problem that Login had.** Nothing proves the
+  submitter owns the number: type a stranger's number into ozzily.com and they receive the
+  welcome SMS, *and* a `users` row is written recording `consent_at`/`consent_text` as though
+  they consented. That is a false consent record in the A2P audit trail. Twilio Verify at
+  signup — verify the code first, then create the row and send the welcome — closes it.

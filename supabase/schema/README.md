@@ -8,7 +8,7 @@ in git. It is documentation, not a deployment artifact.
 | File | Contents |
 |---|---|
 | `01_tables.sql` | tables, constraints, indexes, RLS |
-| `02_functions.sql` | all 18 functions and their EXECUTE grants |
+| `02_functions.sql` | all 24 functions and their EXECUTE grants |
 | `03_triggers.sql` | the 5 triggers |
 | `generate.sql` | the queries that reproduce all of the above, plus two audits |
 

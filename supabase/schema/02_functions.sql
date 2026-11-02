@@ -524,6 +524,53 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.create_verified_user(p_phone text, p_preferred_plan text DEFAULT NULL::text, p_consent_text text DEFAULT 'sms_opt_in_v2'::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+  v_id      uuid;
+  v_new     boolean;
+  v_status  text;
+  v_step    text;
+  v_plan    text;
+begin
+  if p_phone !~ '^\+[1-9][0-9]{7,14}$' then
+    return jsonb_build_object('ok', false, 'error', 'bad_phone');
+  end if;
+
+  v_plan := case when p_preferred_plan in ('monthly', 'annual')
+                 then p_preferred_plan else null end;
+
+  insert into public.users (phone, preferred_plan, consent_at, consent_text)
+  values (p_phone, v_plan, now(), coalesce(p_consent_text, 'sms_opt_in_v2'))
+  on conflict (phone) do update
+    set preferred_plan = coalesce(excluded.preferred_plan, public.users.preferred_plan),
+        -- The FIRST consent is the one that matters for the audit trail; a later
+        -- signup must not overwrite when it was given.
+        consent_at     = coalesce(public.users.consent_at, excluded.consent_at),
+        consent_text   = coalesce(public.users.consent_text, excluded.consent_text),
+        -- A verified signup with the consent box ticked is a genuine re-opt-in, so
+        -- it clears an earlier STOP. Nothing else in the system may do that.
+        sms_opted_out  = false,
+        opted_out_at   = case when public.users.sms_opted_out then null
+                              else public.users.opted_out_at end,
+        updated_at     = now()
+  returning id, (xmax = 0), subscription_status, onboarding_step
+       into v_id, v_new, v_status, v_step;
+
+  return jsonb_build_object(
+    'ok', true,
+    'user_id', v_id,
+    'is_new', v_new,
+    'subscription_status', v_status,
+    'onboarding_step', v_step
+  );
+end $function$
+;
+
 CREATE OR REPLACE FUNCTION public.expire_lapsed_trials()
  RETURNS integer
  LANGUAGE plpgsql
@@ -828,6 +875,22 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.log_outbound_sms(p_user_id uuid, p_body text, p_kind text DEFAULT 'onboarding'::text, p_twilio_sid text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+  v_id uuid;
+begin
+  insert into public.messages (user_id, direction, body, message_kind, twilio_sid)
+  values (p_user_id, 'outbound', p_body, p_kind, p_twilio_sid)
+  returning id into v_id;
+  return v_id;
+end $function$
+;
+
 CREATE OR REPLACE FUNCTION public.mark_checkin_delivered()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1018,6 +1081,91 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.verify_mark_outcome(p_attempt_id bigint, p_outcome text)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  update public.verification_attempts
+     set outcome = p_outcome
+   where id = p_attempt_id
+     and p_outcome in ('requested', 'blocked', 'approved', 'denied');
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.verify_rate_check(p_phone text, p_ip_hash text, p_action text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+  v_phone_hour  int;
+  v_phone_day   int;
+  v_ip_hour     int;
+  v_ip_day      int;
+  v_id          bigint;
+  v_reason      text := null;
+begin
+  if p_action not in ('start', 'confirm') then
+    return jsonb_build_object('allowed', false, 'reason', 'bad_action');
+  end if;
+
+  insert into public.verification_attempts (phone, ip_hash, action)
+  values (p_phone, p_ip_hash, p_action)
+  returning id into v_id;
+
+  select count(*) into v_phone_hour
+    from public.verification_attempts
+   where phone = p_phone and action = p_action
+     and created_at > now() - interval '1 hour';
+
+  select count(*) into v_phone_day
+    from public.verification_attempts
+   where phone = p_phone and action = p_action
+     and created_at > now() - interval '24 hours';
+
+  if p_ip_hash is not null then
+    select count(*) into v_ip_hour
+      from public.verification_attempts
+     where ip_hash = p_ip_hash
+       and created_at > now() - interval '1 hour';
+
+    select count(*) into v_ip_day
+      from public.verification_attempts
+     where ip_hash = p_ip_hash
+       and created_at > now() - interval '24 hours';
+  else
+    v_ip_hour := 0;
+    v_ip_day  := 0;
+  end if;
+
+  if p_action = 'start' then
+    -- A real person needs one code, occasionally two. Three in an hour is already
+    -- generous; each one is a paid SMS plus a Verify charge.
+    if v_phone_hour > 3 then v_reason := 'phone_hourly';
+    elsif v_phone_day > 5 then v_reason := 'phone_daily';
+    elsif v_ip_hour  > 10 then v_reason := 'ip_hourly';
+    elsif v_ip_day   > 20 then v_reason := 'ip_daily';
+    end if;
+  else
+    -- Guessing a 6-digit code needs far more than this to be worth trying, and
+    -- Twilio caps checks per verification independently.
+    if v_phone_hour > 8 then v_reason := 'phone_hourly';
+    elsif v_ip_hour > 25 then v_reason := 'ip_hourly';
+    end if;
+  end if;
+
+  if v_reason is not null then
+    update public.verification_attempts set outcome = 'blocked' where id = v_id;
+    return jsonb_build_object('allowed', false, 'reason', v_reason, 'attempt_id', v_id);
+  end if;
+
+  return jsonb_build_object('allowed', true, 'attempt_id', v_id);
+end $function$
+;
+
 -- ---------------------------------------------------------------- grants
 -- Postgres grants EXECUTE to PUBLIC by default, and create-or-replace keeps the
 -- existing ACL, so revoking from anon/authenticated alone is NOT enough -- PUBLIC
@@ -1035,6 +1183,8 @@ revoke all on function public.checkin_delivery_health() from public, anon, authe
 grant execute on function public.checkin_delivery_health() to service_role;
 revoke all on function public.count_due_checkins() from public, anon, authenticated;
 grant execute on function public.count_due_checkins() to service_role;
+revoke all on function public.create_verified_user(p_phone text, p_preferred_plan text, p_consent_text text) from public, anon, authenticated;
+grant execute on function public.create_verified_user(p_phone text, p_preferred_plan text, p_consent_text text) to service_role;
 revoke all on function public.expire_lapsed_trials() from public, anon, authenticated;
 grant execute on function public.expire_lapsed_trials() to service_role;
 revoke all on function public.get_billing_due() from public, anon, authenticated;
@@ -1049,6 +1199,8 @@ revoke all on function public.get_todays_protein_total(p_user_id uuid) from publ
 grant execute on function public.get_todays_protein_total(p_user_id uuid) to service_role;
 revoke all on function public.infer_timezone_from_phone(p_phone text) from public, anon, authenticated;
 grant execute on function public.infer_timezone_from_phone(p_phone text) to service_role;
+revoke all on function public.log_outbound_sms(p_user_id uuid, p_body text, p_kind text, p_twilio_sid text) from public, anon, authenticated;
+grant execute on function public.log_outbound_sms(p_user_id uuid, p_body text, p_kind text, p_twilio_sid text) to service_role;
 revoke all on function public.mark_checkin_delivered() from public, anon, authenticated;
 grant execute on function public.mark_checkin_delivered() to service_role;
 revoke all on function public.recalculate_streak(p_user_id uuid) from public, anon, authenticated;
@@ -1063,3 +1215,7 @@ revoke all on function public.trigger_checkins_if_due() from public, anon, authe
 grant execute on function public.trigger_checkins_if_due() to service_role;
 revoke all on function public.upsert_streak_day(p_user_id uuid) from public, anon, authenticated;
 grant execute on function public.upsert_streak_day(p_user_id uuid) to service_role;
+revoke all on function public.verify_mark_outcome(p_attempt_id bigint, p_outcome text) from public, anon, authenticated;
+grant execute on function public.verify_mark_outcome(p_attempt_id bigint, p_outcome text) to service_role;
+revoke all on function public.verify_rate_check(p_phone text, p_ip_hash text, p_action text) from public, anon, authenticated;
+grant execute on function public.verify_rate_check(p_phone text, p_ip_hash text, p_action text) to service_role;

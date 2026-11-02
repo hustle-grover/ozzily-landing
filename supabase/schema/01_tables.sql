@@ -105,7 +105,17 @@ create table public.users (
   consent_at               timestamp with time zone,
   consent_text             text,
   weight_kg                numeric(5,1),
-  last_billing_event_at    timestamp with time zone
+  last_billing_event_at    timestamp with time zone,
+  preferred_plan           text
+);
+
+create table public.verification_attempts (
+  id                       bigint not null default nextval('verification_attempts_id_seq'::regclass),
+  phone                    text not null,
+  ip_hash                  text,
+  action                   text not null,
+  outcome                  text not null default 'requested'::text,
+  created_at               timestamp with time zone not null default now()
 );
 
 -- ----------------------------------------------------------- constraints
@@ -137,11 +147,15 @@ alter table public.users add constraint users_medication_check CHECK ((medicatio
 alter table public.users add constraint users_onboarding_step_check CHECK ((onboarding_step = ANY (ARRAY['awaiting_weight'::text, 'awaiting_workout_days'::text, 'awaiting_wake_time'::text, 'complete'::text, 'awaiting_medication'::text, 'awaiting_protein_goal'::text])));
 alter table public.users add constraint users_phone_e164_chk CHECK ((phone ~ '^\+[1-9][0-9]{7,14}$'::text));
 alter table public.users add constraint users_plan_check CHECK ((plan = ANY (ARRAY['monthly'::text, 'annual'::text, 'unspecified'::text])));
+alter table public.users add constraint users_preferred_plan_check CHECK (((preferred_plan IS NULL) OR (preferred_plan = ANY (ARRAY['monthly'::text, 'annual'::text]))));
 alter table public.users add constraint users_protein_goal_check CHECK (((protein_goal >= 20) AND (protein_goal <= 400)));
 alter table public.users add constraint users_subscription_status_check CHECK ((subscription_status = ANY (ARRAY['trial'::text, 'active'::text, 'past_due'::text, 'paused'::text, 'cancelled'::text, 'expired'::text])));
 alter table public.users add constraint users_water_goal_ml_check CHECK (((water_goal_ml >= 500) AND (water_goal_ml <= 10000)));
 alter table public.users add constraint users_weight_kg_check CHECK (((weight_kg IS NULL) OR ((weight_kg >= (25)::numeric) AND (weight_kg <= (400)::numeric))));
 alter table public.users add constraint users_workout_days_check CHECK (((workout_days >= 0) AND (workout_days <= 7)));
+alter table public.verification_attempts add constraint verification_attempts_pkey PRIMARY KEY (id);
+alter table public.verification_attempts add constraint verification_attempts_action_check CHECK ((action = ANY (ARRAY['start'::text, 'confirm'::text])));
+alter table public.verification_attempts add constraint verification_attempts_outcome_check CHECK ((outcome = ANY (ARRAY['requested'::text, 'blocked'::text, 'approved'::text, 'denied'::text])));
 
 -- --------------------------------------------------------------- indexes
 
@@ -156,6 +170,8 @@ CREATE INDEX users_phone_idx ON public.users USING btree (phone);
 CREATE INDEX users_subscription_status_idx ON public.users USING btree (subscription_status);
 CREATE INDEX users_trial_end_idx ON public.users USING btree (trial_end) WHERE (subscription_status = 'trial'::text);
 CREATE INDEX users_wake_time_idx ON public.users USING btree (wake_time, timezone) WHERE (sms_opted_out = false);
+CREATE INDEX verification_attempts_ip_idx ON public.verification_attempts USING btree (ip_hash, created_at DESC) WHERE (ip_hash IS NOT NULL);
+CREATE INDEX verification_attempts_phone_idx ON public.verification_attempts USING btree (phone, created_at DESC);
 
 -- ------------------------------------------------------------------- RLS
 -- Full lockdown: RLS on with zero permissive policies. All access is
@@ -167,3 +183,4 @@ alter table public.payments enable row level security;
 alter table public.scheduled_messages enable row level security;
 alter table public.streaks enable row level security;
 alter table public.users enable row level security;
+alter table public.verification_attempts enable row level security;

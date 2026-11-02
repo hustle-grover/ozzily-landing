@@ -629,4 +629,60 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   by diffing the md5 of each element against `md5(pg_get_functiondef(oid) || ';\n')` rather
   than eyeballing. **Add a guard that refuses to write if the redaction placeholder is
   missing or a live `https://hook.` URL is present**, since this repo is public and the
-  generator's job is to keep that URL out of it.
+  generator's job is to keep that URL out of it. Note the grants block is built from
+  `pg_get_function_identity_arguments`, which includes parameter **names**
+  (`p_event_id text, ...`), not bare types — matching on types alone finds nothing.
+
+- **`hooks_update` cannot disable a Make hook, and says "Hook has been updated" anyway.**
+  `enabled` is not writable through that endpoint: the call requires `headers`, `method`
+  and `stringify` in `data`, accepts `enabled: false` alongside them, reports success, and
+  leaves `enabled: true`. Verified by re-reading the hook afterwards. Make's API has
+  separate `/hooks/{id}/enable` and `/disable` endpoints that the MCP server does not
+  expose, so **disabling a hook is a Make UI action**. Another silent no-op that only a
+  read-back catches — never trust a Make API success message for a field you did not
+  then re-read.
+- **A2P 10DLC covers US destinations only, so the approved campaign says nothing about
+  Canada.** Twilio: the regulation *"applies only to messaging sent from 10DLC numbers to
+  receiving numbers in the US."* Canadian recipients are governed by Canadian carriers
+  instead. Decision 2026-11-02: **US only.** The trap is that Canada shares the `+1`
+  country code, so `SIGNUP_ALLOWED_PREFIXES="+1"` cannot express "US only" — it takes a
+  NANP **area code** list. `signup-verify` carries 53 Canadian area codes behind
+  `SIGNUP_BLOCK_CA` (default on), and the list was checked both ways: no US area code is
+  in it, and the known Canadian ones are. Getting that list wrong silently blocks real
+  customers, so test it in both directions, not just that Canada is refused.
+- **`text[] || 'some literal'` raises 22P02, and only once there is something to report.**
+  Postgres parses the right-hand side as an array literal. `verification_health()` passed
+  every happy-path test and then threw the instant a problem existed — i.e. it would have
+  died precisely during the outage it exists to catch. Cast explicitly: `|| 'text'::text`.
+  This is the third turn of the same screw after `checkin_delivery_health()`: it is not
+  enough for a health check to *report* a failure, it has to **survive** one. Test it
+  against the failure.
+- **The global daily cap is a deliberate self-inflicted outage, so it must warn early.**
+  Per-phone and per-IP limits bound one attacker and do nothing against a distributed
+  burst, where every request looks like a different first-time visitor. The global cap
+  (200 starts/24h, ~$13 worst case) fixes that, but when it trips **nobody** can sign up.
+  Verified: with the cap exceeded, a brand-new phone and IP is refused `global_daily`.
+  That is the right direction to fail — a lost day is recoverable, an unbounded bill is
+  not — which is exactly why `signup-verify` alerts at **80%**, while signups still work,
+  and not only at the ceiling. `VERIFY_ALERT_WEBHOOK_URL` is the delivery channel and the
+  alert path is unfailable by construction.
+- **Switching a backend off makes the page in front of it lie.** `login.html` still read
+  *"Pop in the number you text Ozzily from and we'll send a text straight back"* after the
+  Login scenario was deactivated, so a returning user was promised a text that could never
+  arrive — while the success panel below it correctly said there was nothing to log into.
+  Two bits of copy on one page disagreeing is the tell. **When a flow is disabled, audit
+  the copy that described it in the same change.** Also: `/login` 404'd because only
+  `/pay` had a `vercel.json` rewrite; the nav link worked solely because it points at
+  `login.html` with the extension.
+- **`terms.html` does not disclose Paddle as merchant of record.** Paddle is the legal
+  seller, issues the receipt, appears on the card statement and remits the tax, and none
+  of that is stated anywhere on the site. That is a consumer-disclosure gap rather than a
+  copy preference, and it needs the exact legal entity name from the Paddle dashboard
+  rather than a guess. Raised 2026-11-02, drafted, not yet applied.
+- **`payments` now stores `tax_cents`, `fee_cents` and `earnings_cents`.** Gross alone
+  cannot answer "what did we keep". All three are **nullable on purpose**: Paddle fills
+  `fee` and `earnings` only once a transaction settles, so 0 would be a false statement
+  rather than a missing one. Verified both ways — a settled event reconciles
+  (`grand_total = earnings + fee + tax`, 2900 = 2473 + 195 + 232) and an unsettled one
+  stores `tax` with `fee`/`earnings` null — and the `provider_event_id` idempotency guard
+  still makes a replay a no-op after the signature change.

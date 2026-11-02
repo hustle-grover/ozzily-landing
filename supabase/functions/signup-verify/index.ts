@@ -24,6 +24,8 @@
 //   TURNSTILE_SECRET            optional -- when unset, the check is skipped
 //   SIGNUP_ALLOWED_PREFIXES     optional, default "+1"
 //   SIGNUP_TEST_PHONES          optional, comma-separated E.164 exempt from the gate
+//   SIGNUP_BLOCK_CA             optional, "false" to allow Canadian +1 numbers
+//   VERIFY_ALERT_WEBHOOK_URL    optional, POSTed when the global daily cap is near/hit
 //   IP_HASH_SALT                optional, falls back to the service role key
 
 const ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
@@ -43,6 +45,25 @@ const TEST_PHONES = new Set(
   (Deno.env.get("SIGNUP_TEST_PHONES") ?? "")
     .split(",").map((s) => s.trim()).filter(Boolean),
 );
+
+const ALERT_WEBHOOK = Deno.env.get("VERIFY_ALERT_WEBHOOK_URL") ?? "";
+const BLOCK_CA = (Deno.env.get("SIGNUP_BLOCK_CA") ?? "true").toLowerCase() !== "false";
+
+// US-ONLY, AND +1 IS NOT ENOUGH TO EXPRESS THAT.
+// A2P 10DLC applies only to messages sent to recipients in the US -- Twilio's own
+// wording -- so our approved campaign covers US destinations and says nothing about
+// Canada. Canada shares the +1 country code, so a prefix test cannot separate them;
+// only the NANP area code can. Canadian traffic is governed by Canadian carriers
+// instead, is untested here, and would be refused by Messaging geo permissions
+// anyway. Blocking it in our own gate turns a confusing failed send into a clear
+// message. Flip SIGNUP_BLOCK_CA=false when Canada is deliberately taken on.
+const CA_AREA_CODES = new Set([
+  "204", "226", "236", "249", "250", "263", "289", "306", "343", "354", "365",
+  "367", "368", "382", "403", "416", "418", "428", "431", "437", "438", "450",
+  "468", "474", "506", "514", "519", "548", "579", "581", "584", "587", "604",
+  "613", "639", "647", "672", "683", "705", "709", "742", "753", "778", "780",
+  "782", "807", "819", "825", "867", "873", "879", "902", "905",
+]);
 
 // Only these origins may call this from a browser. A wildcard would let any page
 // drive our signup flow.
@@ -127,7 +148,30 @@ function toE164(raw: string): string | null {
 
 function countryAllowed(phone: string): boolean {
   if (TEST_PHONES.has(phone)) return true;
-  return ALLOWED_PREFIXES.some((p) => phone.startsWith(p));
+  if (!ALLOWED_PREFIXES.some((p) => phone.startsWith(p))) return false;
+  if (BLOCK_CA && phone.startsWith("+1") && CA_AREA_CODES.has(phone.slice(2, 5))) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Fire-and-forget alert. Deliberately unfailable: the last step of any guard path
+ * must not be able to break the thing it guards. An unhandled throw here would turn
+ * "we are near the spend cap" into "signup is down".
+ */
+async function alertOps(level: string, detail: Record<string, unknown>): Promise<void> {
+  console.error(JSON.stringify({ at: "signup-verify.alert", level, ...detail }));
+  if (!ALERT_WEBHOOK) return;
+  try {
+    await fetch(ALERT_WEBHOOK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "ozzily.signup-verify", level, ...detail }),
+    });
+  } catch (e) {
+    console.error(JSON.stringify({ at: "signup-verify.alert", failed: String(e) }));
+  }
 }
 
 async function turnstileOk(token: string, ip: string | null): Promise<boolean> {
@@ -196,9 +240,28 @@ async function handleStart(
   const verdict = await gate.json().catch(() => null);
   if (!gate.ok || !verdict?.allowed) {
     console.warn(JSON.stringify({ at: "signup-verify.start", blocked: verdict?.reason ?? "rate_rpc_failed" }));
+    if (verdict?.reason === "global_daily") {
+      // Signups are now refused for everyone until the window rolls. This is the one
+      // refusal that is our problem rather than the caller's.
+      await alertOps("critical", {
+        message: "global daily verification cap reached -- signups are being refused",
+        used: verdict?.global_used, cap: verdict?.global_cap,
+      });
+    }
     return json({ ok: false, error: "too_many_attempts" }, 429, origin);
   }
   const attemptId = verdict.attempt_id as number;
+
+  // Warn while signups still WORK. An alert that only fires at the ceiling arrives
+  // after the damage; 80% leaves room to react.
+  const used = Number(verdict?.global_used ?? 0);
+  const cap = Number(verdict?.global_cap ?? 0);
+  if (cap > 0 && used >= cap * 0.8) {
+    await alertOps("warning", {
+      message: "verification starts above 80% of the global daily cap",
+      used, cap,
+    });
+  }
 
   const form = new URLSearchParams({ To: phone, Channel: "sms" });
   const res = await fetch(

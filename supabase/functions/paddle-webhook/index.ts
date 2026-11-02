@@ -166,6 +166,14 @@ Deno.serve(async (req: Request) => {
     p_failure_reason: null,
     p_paddle_status: (data.status as string | null) ?? null,
     p_next_billed_at: (data.next_billed_at as string | null) ?? null,
+    // Gross alone cannot answer "what did we actually keep". Paddle is the merchant
+    // of record, so `tax` is what Paddle collected and remits, and `earnings` is what
+    // reaches us. Both `fee` and `earnings` are absent until a transaction settles,
+    // so they stay null rather than being coerced to 0 -- a zero fee would be a
+    // false statement, not a missing one.
+    p_tax_cents: (totals.tax as string | null) ?? null,
+    p_fee_cents: (totals.fee as string | null) ?? null,
+    p_earnings_cents: (totals.earnings as string | null) ?? null,
   };
 
   const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/apply_payment_event`, {

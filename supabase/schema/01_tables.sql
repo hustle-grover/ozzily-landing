@@ -41,7 +41,10 @@ create table public.payments (
   plan                     text,
   failure_reason           text,
   created_at               timestamp with time zone not null default now(),
-  provider                 text not null default 'paddle'::text
+  provider                 text not null default 'paddle'::text,
+  tax_cents                integer,
+  fee_cents                integer,
+  earnings_cents           integer
 );
 
 create table public.scheduled_messages (

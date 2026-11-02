@@ -94,7 +94,12 @@
 
     <div id="loginView">
       <h1>Hey again.</h1>
-      <p class="sub">Pop in the number you text Ozzily from and we'll send a text straight back.</p>
+      <!-- This promised "we'll send a text straight back", which stopped being true the
+           moment the Login scenario was switched off: the form now validates the number
+           and shows the confirmation below without calling anything. Promising a text
+           that cannot arrive is worse than having no page. Keep this copy and the
+           success view in agreement with whatever the form actually does. -->
+      <p class="sub">Ozzily lives in your texts, so there's no password to remember. Pop in your number and we'll point you the right way.</p>
 
       <form id="loginForm" novalidate>
         <div class="field">

@@ -1,6 +1,7 @@
 {
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/pay", "destination": "/pay.html" }
+    { "source": "/pay", "destination": "/pay.html" },
+    { "source": "/login", "destination": "/login.html" }
   ]
 }

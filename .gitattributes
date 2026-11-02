@@ -2,3 +2,7 @@
 # database, so it must stay byte-identical. CRLF conversion would break that.
 *.sql text eol=lf
 *.md  text eol=lf
+
+# Edge Function sources are deployed from these exact bytes and fingerprinted
+# against the deployed version, so they must not pick up CRLF either.
+*.ts  text eol=lf

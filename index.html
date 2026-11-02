@@ -104,10 +104,21 @@
         <sc-if value="{{ formSuccess }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; align-items: center; gap: 12px; background: #E8F0E2; border: 1px solid rgba(111,156,92,0.3); border-radius: 18px; padding: 18px 22px; margin-bottom: 38px; max-width: 420px;">
             <span style="font-size: 22px;">✅</span>
-            <span style="font-size: 15px; font-weight: 600; color: #33512A;">Check your phone — Ozzily is texting you now!</span>
+            <span style="font-size: 15px; font-weight: 600; color: #33512A;">{{ successMsg }}</span>
           </div>
         </sc-if>
-        <sc-if value="{{ formNotSuccess }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ stepCode }}" hint-placeholder-val="{{ false }}">
+          <p style="font-size: 15px; line-height: 1.55; color: #5A4A7D; margin: 0 0 12px; max-width: 34em;">{{ codeNotice }} Pop it in below and you're in.</p>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+            <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" value="{{ code }}" onChange="{{ onCodeChange }}" aria-label="The 6-digit code we texted you" style="flex: 1; min-width: 160px; max-width: 200px; padding: 16px 20px; border-radius: 999px; border: 2px solid rgba(59,46,90,0.14); background: #FFFDF9; font-size: 18px; letter-spacing: 0.18em; font-family: 'Plus Jakarta Sans', sans-serif; color: #3B2E5A;" />
+            <button type="button" onClick="{{ onConfirm }}" disabled="{{ submitting }}" style="background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 16px 30px; border-radius: 999px; border: none; cursor: pointer; box-shadow: 0 12px 30px rgba(255,159,67,0.45); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-3px); box-shadow: 0 16px 38px rgba(255,159,67,0.6); color: #3B2E5A;">{{ confirmLabel }}</button>
+          </div>
+          <sc-if value="{{ formError }}" hint-placeholder-val="{{ false }}">
+            <p style="color: #C24545; font-size: 14px; font-weight: 600; margin: 0 0 12px;">{{ errorMsg }}</p>
+          </sc-if>
+          <button type="button" onClick="{{ onEditNumber }}" style="background: none; border: none; padding: 0; margin-bottom: 32px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 600; color: #6B5D8A; text-decoration: underline; cursor: pointer;">Use a different number</button>
+        </sc-if>
+        <sc-if value="{{ stepPhone }}" hint-placeholder-val="{{ true }}">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
             <input type="tel" inputmode="tel" placeholder="(555) 123-4567" value="{{ phone }}" onChange="{{ onPhoneChange }}" aria-label="Your phone number" style="flex: 1; min-width: 220px; max-width: 280px; padding: 16px 20px; border-radius: 999px; border: 2px solid rgba(59,46,90,0.14); background: #FFFDF9; font-size: 16px; font-family: 'Plus Jakarta Sans', sans-serif; color: #3B2E5A;" />
             <button type="button" onClick="{{ onSubmit }}" disabled="{{ submitting }}" style="background: #FF9F43; color: #3B2E5A; font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 18px; padding: 16px 30px; border-radius: 999px; border: none; cursor: pointer; box-shadow: 0 12px 30px rgba(255,159,67,0.45); transition: transform .18s ease, box-shadow .18s ease;" style-hover="transform: translateY(-3px); box-shadow: 0 16px 38px rgba(255,159,67,0.6); color: #3B2E5A;">{{ submitLabel }}</button>
@@ -440,11 +451,45 @@ const FAQS = [
 ];
 
 class Component extends DCLogic {
-  state = { shown: 0, typing: false, openFaq: null, faqInit: false, menuOpen: false, phone: '', submitting: false, success: false, error: '', plan: '', consent: false };
+  state = { shown: 0, typing: false, openFaq: null, faqInit: false, menuOpen: false, phone: '', code: '', step: 'phone', e164: '', submitting: false, success: false, error: '', notice: '', plan: '', consent: false };
 
   onPhoneChange = (e) => this.setState({ phone: e.target.value, error: '' });
 
+  onCodeChange = (e) => this.setState({ code: e.target.value, error: '' });
+
   onConsentChange = (e) => this.setState({ consent: e.target.checked, error: '' });
+
+  // Back to the number field. Clears the code so a stale one cannot be submitted
+  // against a different number.
+  onEditNumber = () => this.setState({ step: 'phone', code: '', error: '', notice: '' });
+
+  // Every message the server can refuse with, in our own voice. Anything unmapped
+  // falls through to a generic line rather than surfacing a raw error key.
+  errorFor(key) {
+    const map = {
+      bad_phone: 'That number does not look right. Enter a 10-digit US number.',
+      consent_required: 'Please check the box so Ozzily can text you.',
+      country_not_supported: 'Ozzily is US and Canada only for now. Sorry!',
+      too_many_attempts: 'Too many tries just now. Give it a few minutes and have another go.',
+      challenge_failed: 'We could not confirm you are human. Please reload and try again.',
+      send_failed: 'We could not text that number. Mind double-checking it?',
+      code_incorrect: 'That code did not match. Check the text and try again.',
+      signup_failed: 'Something went wrong on our end. Mind trying again in a moment?',
+      not_configured: 'Signup is briefly unavailable. Please try again shortly.'
+    };
+    return map[key] || 'Something went wrong on our end — mind trying again in a moment?';
+  }
+
+  async postVerify(body) {
+    const resp = await fetch('https://siblqlstyccysqryggtr.supabase.co/functions/v1/signup-verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    let data = null;
+    try { data = await resp.json(); } catch (e) { data = null; }
+    return { resp: resp, data: data };
+  }
 
   onSubmit = async () => {
     const raw = (this.state.phone || '').trim();
@@ -468,17 +513,65 @@ class Component extends DCLogic {
       this.setState({ error: 'Please check the box so Ozzily can text you — that consent is how the service works.' });
       return;
     }
+    this.setState({ submitting: true, error: '', notice: '' });
+    try {
+      // Step 1 sends a code. NOTHING is created yet: no users row, no consent record,
+      // no coaching text. Typing a stranger's number here now costs them one code and
+      // gets them nothing else.
+      const out = await this.postVerify({
+        action: 'start',
+        phone: e164,
+        consent: true,
+        consent_text: 'sms_opt_in_v2',
+        plan: this.state.plan || '',
+        source: 'landing_page',
+        page_url: window.location.href
+      });
+      if (!out.resp.ok || !out.data || out.data.ok !== true) {
+        const key = (out.data && out.data.error) || '';
+        this.setState({ submitting: false, error: this.errorFor(key) });
+        return;
+      }
+      this.setState({
+        submitting: false,
+        step: 'code',
+        e164: e164,
+        notice: 'We texted a 6-digit code to ' + e164 + '.'
+      });
+    } catch (err) {
+      this.setState({ submitting: false, error: this.errorFor('') });
+    }
+  };
+
+  onConfirm = async () => {
+    const code = (this.state.code || '').replace(/\D/g, '');
+    if (code.length !== 6) {
+      this.setState({ error: 'Enter the 6-digit code from the text.' });
+      return;
+    }
     this.setState({ submitting: true, error: '' });
     try {
-      const resp = await fetch('https://hook.us2.make.com/sis2d2ovkqo12tyys29r8xkbvcw7v7en', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: e164, source: 'landing_page', plan: this.state.plan || 'unspecified', consent: true, consent_text: 'sms_opt_in_v2', page_url: window.location.href })
+      // Step 2 is the only place a users row, a consent record and the welcome text
+      // come into existence -- and only because Twilio confirmed this code reached
+      // this number.
+      const out = await this.postVerify({
+        action: 'confirm',
+        phone: this.state.e164,
+        code: code,
+        consent: true,
+        consent_text: 'sms_opt_in_v2',
+        plan: this.state.plan || '',
+        source: 'landing_page',
+        page_url: window.location.href
       });
-      if (!resp.ok) throw new Error('Request failed');
-      this.setState({ submitting: false, success: true });
+      if (!out.resp.ok || !out.data || out.data.ok !== true) {
+        const key = (out.data && out.data.error) || '';
+        this.setState({ submitting: false, error: this.errorFor(key) });
+        return;
+      }
+      this.setState({ submitting: false, success: true, returning: out.data.returning === true });
     } catch (err) {
-      this.setState({ submitting: false, error: 'Something went wrong on our end — mind trying again in a moment?' });
+      this.setState({ submitting: false, error: this.errorFor('') });
     }
   };
 
@@ -527,16 +620,27 @@ class Component extends DCLogic {
       phone: this.state.phone,
       onPhoneChange: this.onPhoneChange,
       onSubmit: this.onSubmit,
+      code: this.state.code,
+      onCodeChange: this.onCodeChange,
+      onConfirm: this.onConfirm,
+      onEditNumber: this.onEditNumber,
+      // Three mutually exclusive surfaces: number, code, done.
+      stepPhone: !this.state.success && this.state.step === 'phone',
+      stepCode: !this.state.success && this.state.step === 'code',
+      codeNotice: this.state.notice,
+      successMsg: this.state.returning
+        ? 'You are already set up — Ozzily has your number.'
+        : 'Check your phone — Ozzily is texting you now!',
       consent: this.state.consent,
       onConsentChange: this.onConsentChange,
       chooseMonthly: () => this.setState({ plan: 'monthly' }),
       chooseAnnual: () => this.setState({ plan: 'annual' }),
       submitting: this.state.submitting,
-      submitLabel: this.state.submitting ? 'Sending…' : 'Text me',
+      submitLabel: this.state.submitting ? 'Sending…' : 'Text me a code',
+      confirmLabel: this.state.submitting ? 'Checking…' : 'Confirm',
       formError: !!this.state.error,
       errorMsg: this.state.error,
       formSuccess: this.state.success,
-      formNotSuccess: !this.state.success,
       typing: this.state.typing,
       visible: SCRIPT.slice(0, shown).map((m, i) => ({
         text: m.text, isOzzy: m.from === 'ozzy', isUser: m.from === 'user', key: i

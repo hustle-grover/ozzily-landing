@@ -696,13 +696,27 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   promised it, which is worse than either state. Audit by grepping the *claim's subject* (the
   price) across every page, not by editing the files named in the request.
 - **Paddle is the merchant of record and that was disclosed nowhere.** It issues the receipt,
-  appears on the card statement, and collects and remits sales tax or VAT. The disclosure says
-  "Paddle" rather than a legal entity on purpose, because Paddle uses different ones by region
-  -- **replace it with the exact name from the Paddle dashboard before launch**, and treat the
-  GST/FEMA side as a question for the CA.
+  appears on the card statement, and collects and remits sales tax or VAT. The named entity is
+  **Paddle.com Market Limited**, confirmed from the dashboard on 2026-11-03 and now stated in
+  `terms.html`, `pay.html` and `privacy.html`. The GST/FEMA export-of-services side is still a
+  question for the CA.
 - **Do not introduce a heading level a page's CSS does not define.** `terms.html` styles `h1`
   and `h2` only, so the new `<h3>` rendered as an unstyled browser default (bigger, wrong face)
   next to the styled `h2`s. `grep -n 'h3' terms.html` returned exactly one hit -- the line just
   added -- which is the tell. Rewritten as the page's existing `<p><strong>lead-in:</strong>`
   pattern, verified identical to the surrounding `li` text (16px, same colour, weight 700).
   Check a new tag against the stylesheet before assuming it inherits anything.
+
+- **`privacy.html` still named Stripe as the payment processor, three weeks after the switch to
+  Paddle.** Naming the entity in `terms.html` was the prompt to grep the whole site, and the
+  privacy policy turned out to misidentify the company that actually receives customer payment
+  data -- in the "Who we share it with" list *and* in the data table ("Payment status: from
+  Stripe"). A wrong processor in a privacy policy is a worse defect than the missing
+  merchant-of-record disclosure that started this, because it is an affirmative false statement
+  rather than an omission. **When a vendor changes, grep for the old vendor's name across every
+  page, not just the file you are editing.** `grep -rn -i 'stripe' --include=*.html .` now
+  returns nothing.
+- **A new processor purpose needs a privacy-policy line even when the processor is unchanged.**
+  Twilio was already disclosed as delivering texts, but Twilio Verify sends the signup OTP,
+  which is a different purpose for the same vendor. The entry now says so. Shipping a new flow
+  means re-reading the privacy policy, not only the terms.

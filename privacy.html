@@ -81,7 +81,7 @@
       <tr><td>Meal and workout photos</td><td>When you send them to Ozzily</td></tr>
       <tr><td>Message history</td><td>Every text exchange with Ozzily</td></tr>
       <tr><td>Streak and progress data</td><td>Calculated from your check-ins</td></tr>
-      <tr><td>Payment status</td><td>From Stripe once you subscribe (we never see your card number)</td></tr>
+      <tr><td>Payment status</td><td>From Paddle once you subscribe (we never see your card number)</td></tr>
     </table>
   </section>
 
@@ -100,10 +100,10 @@
     <h2>4. Who we share it with</h2>
     <p>Ozzily runs on a small set of trusted service providers, each of whom only receives what they need to do their job:</p>
     <ul>
-      <li><strong>Twilio</strong> — delivers and receives your text messages</li>
+      <li><strong>Twilio</strong> — delivers and receives your text messages, and sends the one-time code that verifies your number at signup</li>
       <li><strong>Supabase</strong> — securely stores your account and message data</li>
       <li><strong>Anthropic</strong> — powers Ozzily's replies and analyzes meal and workout photos you send us (Claude)</li>
-      <li><strong>Stripe</strong> — processes payments; we never store your card details</li>
+      <li><strong>Paddle</strong> (Paddle.com Market Limited) — our merchant of record; takes payment and handles sales tax. We never see or store your card details</li>
     </ul>
     <p>We do not sell or share your SMS opt-in data or personal information with third parties for marketing purposes. Mobile phone numbers and SMS consent are never shared with third parties or affiliates for their marketing or promotional use.</p>
     <p>We don't share your information with advertisers, data brokers, or anyone outside of running the service itself.</p>

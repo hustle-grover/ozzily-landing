@@ -811,3 +811,50 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
 - **`scheduled_messages` has no `kind` column -- it is `message_kind`.** Cost one failed query;
   noted because the billing beat work will touch this table and `mark_checkin_delivered()`
   keys off that column. `users` has no `trial_ends_at` either.
+
+## Read the Notion Credentials Vault first (re-learned 2026-11-03)
+
+I diagnosed the Paddle state from the repo and the live site, and only checked the vault when
+told to. The diagnosis was right, but the vault answered in one read what cost several tool
+calls, and it carried facts not derivable from the code at all. **This is the second time the
+"check the Builder OS first" rule has been violated in this project.** The vault is at
+`Pankaj's Builder OS / Credentials Vault`.
+
+What it holds that the repo cannot: live secret values, the Paddle seller id and account email,
+the Twilio Messaging Service SID, Make connection and key ids, and the decision record with
+dates. **Never copy a secret value from it into this repo** -- the repo is public. Referring to
+a credential by name is fine; its value is not.
+
+- **A2P 10DLC is FULLY APPROVED as of 2026-10-25, and only the vault knew.** All three gates are
+  closed: Campaign approved and Verified, the number present in the Messaging Service sender
+  pool, and the account funded. Advanced Opt-Out is on with the registered STOP/START/HELP copy,
+  and the Messaging Service defers inbound to the Make URL. This file still said "Not started"
+  as of 2026-10-15, which would lead a future session to believe **US outbound is still blocked
+  when it is not**. The remaining blocker is only the *inbound* leg: no genuine Twilio SID has
+  ever reached the AI Brain, which needs a US or Canada handset.
+- **The sandbox state of Paddle is deliberate, not an accident.** The vault records
+  `Environment: sandbox` with "swap for the `live_` token at launch". The hostname guard added
+  on 2026-11-03 is still correct -- a sandbox checkout must never serve on the apex -- but it
+  was closing a *known* gap rather than catching a mistake. Check the vault before calling
+  something a defect.
+- **`PADDLE_PRICE_ID_MONTHLY` and `PADDLE_PRICE_ID_ANNUAL` are optional secrets with a silent
+  failure mode.** `planForPriceId()` returns null when they are unset, so `p_plan` is null and
+  `users.plan` is **never labelled even after a successful payment** -- monthly and annual
+  subscribers become indistinguishable. Nothing errors. Set both when the production prices
+  exist, in the same change as `PADDLE_WEBHOOK_SECRET`.
+- **A 401 from `paddle-webhook` does not distinguish "no secret set" from "wrong signature".**
+  Both fail closed, which is correct, and both look identical from outside. Only a request
+  signed with the real secret proves the secret is configured. A probe that settles it without
+  writing a `payments` row -- it names an unresolvable `user_id`, so `apply_payment_event()`
+  returns `ok:false` -- is kept out of the repo in the session scratchpad, since it needs the
+  secret in its environment.
+- **Make hook 2997965 is reserved for the OUTBOUND "payment received" SMS and is idle by
+  design.** Paddle does not point at it and must not: signature verification needs raw bytes
+  that Make destroys by parsing. Do not "fix" the idle hook.
+- **Doc drift found by reconciling the vault against the snapshot:** the vault says 6 tables and
+  20 functions; the committed snapshot has **7 tables** (`verification_attempts`) and **25
+  functions**, and lists three Edge Functions where the vault names two (`signup-verify` is
+  missing). The vault also still lists the Signup and Login scenarios as Active when both are
+  now off, and carries capturing `details.totals.tax/fee/earnings` as an open item although it
+  shipped on 2026-11-02. **Mirroring is a two-way obligation**: this file was stale on A2P, the
+  vault is stale on the schema. Reconcile both whenever either changes.

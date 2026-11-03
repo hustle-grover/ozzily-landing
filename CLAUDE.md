@@ -46,17 +46,17 @@ generic AI-startup-template aesthetics.
   this repo's code. If a task involves "wiring a CTA to Make.com," the repo-side
   work is just making sure the form POSTs to the right webhook URL; the scenario
   logic itself is configured in Make's UI, not here.
-- AI: GPT-4o (system prompt engineering in progress).
-- Payments: Stripe (setup pending).
+- AI: Anthropic Claude Sonnet 5 for the AI Brain (see the model note below).
+- Payments: Paddle as merchant of record (data layer and webhook built).
 
 ## On the horizon (pick up here)
 
 1. Wire the four landing page CTAs to the Make.com webhook for phone number capture.
 2. Build out the Make.com automation scenarios (onboarding, vision AI photo
    verification, trial expiration, scheduled check-ins).
-3. Engineer the GPT-4o system prompt (warm/supportive tone, not the old
+3. Engineer the Claude system prompt (warm/supportive tone, not the old
    aggressive ProteinPolice tone — strict on no medical/dosing advice).
-4. Set up Stripe billing (3-day trial → $29/month).
+4. Finish Paddle billing (3-day trial over SMS → $29/month).
 
 ## Hard-won technical learnings
 
@@ -134,23 +134,8 @@ generic AI-startup-template aesthetics.
   (`SM` + 32 hex) — so no real handset had ever reached the AI Brain. Check for real
   SIDs before believing a flow is live:
   ```sql
-  select count(*) filter (where twilio_sid ~ '^SM[0-9a-f]{32}
-
-- **Execute directly.** Create schemas, deploy, update Notion, etc. — don't just
-  hand back step-by-step instructions to run manually.
-- **Push back when there's a better path.** He wants honest, direct opinions over
-  hedged advice, including disagreement with the original plan.
-- Iterate through accessibility/quality audit passes before calling a component done.
-- Keep credentials and project tracking centralized in Notion — not scattered in
-  ad hoc per-project notes.
-- Descriptive, organized file names by default.
-- Milestone-gated style: one clear deliverable at a time, verified before moving on.
-
-## Secrets
-
-Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a local
-`.env` (gitignored) — never in this file, never committed.
-) as real_sids
+  select count(*) filter (where twilio_sid ~ '^SM[0-9a-f]{32}$'
+  ) as real_sids
   from public.messages where direction = 'inbound';
   ```
 - **Twilio supports MMS only in the US and Canada.** Inbound MMS to the US long code
@@ -320,7 +305,7 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
 
 ## Secrets
 
-Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a local
+Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a local
 `.env` (gitignored) — never in this file, never committed.
 
 - **Ban the em dash deterministically, not just in the prompt.** Asking the model for plain
@@ -720,3 +705,41 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   Twilio was already disclosed as delivering texts, but Twilio Verify sends the signup OTP,
   which is a different purpose for the same vendor. The entry now says so. Shipping a new flow
   means re-reading the privacy policy, not only the terms.
+
+- **A site-wide stale-vendor audit found a public page contradicting the live pricing copy.**
+  `Ozzily Landing.dc.html` was a frozen duplicate of the landing page from the very first
+  `Add files via upload` commit -- its only commit, against 13 later commits to `index.html` --
+  and because `vercel.json` sets `outputDirectory: "."`, **every file in the repo is publicly
+  served**. It answered 200 at `/Ozzily%20Landing.dc.html` carrying the pre-fix
+  `$29/mo. Cancel by text` with no tax disclosure, with no `robots.txt` to keep crawlers off it.
+  Deleted. **Rule: in a repo served from its own root, an orphan file is a live URL.** Check
+  `git log --oneline -- <file>` before assuming a stray export is harmless: one upload commit
+  and no edits is the signature of an abandoned duplicate.
+- **Both legal pages said "Last updated: October 2026" after a material November change.** The
+  merchant-of-record disclosure, the tax-inclusive prices and the Stripe-to-Paddle processor
+  correction all landed on 2026-11-03 without the date moving. A stale date on a changed legal
+  document is its own misrepresentation. Bump it in the same commit as any substantive edit.
+- **Separate the historical references from the stale ones before "fixing" either.** The sweep
+  still reports Stripe, OpenAI, GPT-4o, Framer, Razorpay, ProteinPolice and the dead
+  `+1 415 980 6160` in `CLAUDE.md` and `ROADMAP.md`, and every one of those is correct: they sit
+  in "previously called", "rejected", the PRD reconciliation table's *old* column, or a dated log
+  entry. Deleting them would destroy the decision record. The test is not whether a vendor name
+  appears, it is **whether the sentence asserts present tense.** Only four did, all in
+  `CLAUDE.md`'s own build-state section -- which claimed GPT-4o and "Stripe (setup pending)"
+  while the same file 350 lines later said to stay on Claude Sonnet 5 and documented the Paddle
+  build. My own operating context was the most out-of-date document in the repo.
+- **`CLAUDE.md` was corrupted: a block had been pasted inside a fenced code block.** The
+  "How Pankaj wants this worked" and "Secrets" sections appeared **twice**, the second copy
+  spliced into the middle of the real-SID query in the webhook-test learning, which split
+  `'^SM[0-9a-f]{32}$') as real_sids` across 17 intervening lines and silently ate the `$'`
+  (an unquoted heredoc append is the likely culprit -- this is why appends to this file go
+  through a quoted heredoc or Python, never a bare `>>` with `$`). Both the duplicate and the
+  broken query are fixed; fences verified balanced at 18, nine pairs. **Check `grep -n '^## '`
+  for repeated headings after any append**, and prefer `io.open(..., newline='')` + an asserted
+  `replace()` over appending blind.
+- **`.image-slots.state.json` is a live dependency, not build cruft.** 318KB of base64 webp at
+  the repo root looks deletable; `image-slot.js` loads it by that exact basename to persist the
+  mascot images across reloads, and its four slot ids match `index.html`. Verified it holds no
+  credentials (the `eyJ`-looking hits were case-insensitive matches inside the image bytes, not
+  JWTs -- a real one needs exact case and three dot-separated segments). Confirm what loads a
+  file before calling it cruft.

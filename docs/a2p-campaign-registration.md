@@ -165,7 +165,7 @@ claims about medication or health outcomes, no links.**
 
 | Question | Answer | Why |
 |---|---|---|
-| Embedded links? | **Yes** | ozzily.com appears in terms/consent context, and Stripe billing links arrive with Milestone D. No message contains a link today — declaring Yes now is safe; declaring No and later sending one is not. |
+| Embedded links? | **Yes** | ozzily.com appears in terms/consent context, and the ozzily.com/pay billing link arrives with Milestone D. No message contains a link today — declaring Yes now is safe; declaring No and later sending one is not. |
 | Embedded phone numbers? | No | |
 | Age-gated content? | No | 18+ requirement is an eligibility term, not age-gated content |
 | Direct lending / loan arrangement? | No | |

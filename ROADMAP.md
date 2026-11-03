@@ -127,8 +127,8 @@ SCENARIO 3 · "Ozzily Daily Check-ins"      [scheduler → Supabase → Twilio] 
 SCENARIO 2 (extended) · Vision              ← NOT BUILT (2.3)
   inbound MMS media_url → same Claude call + image block → protein-from-photo
 
-SCENARIO 4 · "Ozzily Billing"              [Stripe ↔ Supabase ↔ Twilio]      ← NOT BUILT
-  day-3 trial-end SMS w/ Stripe link · webhook activates · dunning · cancel-by-text
+SCENARIO 4 · "Ozzily Billing"              [Paddle ↔ Supabase ↔ Twilio]      ← PARTIAL
+  day-4 /pay SMS · signed Paddle webhook activates · dunning · cancel-by-text
 ```
 
 **The structural gap that matters most:** today Ozzily is almost entirely **reactive** (answers inbound, sends one welcome). The product it sells — *"texts you every day"* — is **proactive**, and that (Scenario 3) is not built. `scheduled_messages` exists; the cron doesn't.
@@ -171,7 +171,7 @@ Order optimized for "shortest path to a compliant, real beta," which is **not** 
 **⛔ Cannot be finished yet, for two reasons** (risks 1 and 3): the Twilio inbound webhook is not wired, so no photo reaches the pipeline at all; and Twilio supports MMS only in the US/Canada, so the +91 test number can never deliver one. Needs the webhook fixed **and** a US/Canada handset. Until then photos take the graceful-degradation path rather than being read — which is safe, just not the feature.
 
 ### Milestone D — Billing & trial lifecycle (Sessions 3.1/3.2, Scenario 4)
-- Stripe subscription ($29/mo, $249/yr), day-3 trial-end SMS w/ link, webhook activation, dunning, cancel-by-text.
+- Paddle subscription ($29/mo, $249/yr, tax inclusive), day-4 /pay SMS, webhook activation, dunning, cancel-by-text.
 - Wire the landing `plan` field through Scenario 1 → Supabase so plan intent is captured at signup.
 - **Done when:** a trial converts to paid and a cancel-by-text stops billing, both verified.
 

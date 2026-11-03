@@ -786,3 +786,28 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
     cannot reach it. A domain property would cover www, http and all subdomains rather than just
     the apex; it needs a Namecheap TXT record. URL-prefix on the apex is adequate here only
     because www 308-redirects to apex, so no content lives anywhere else.
+
+- **Paddle was NOT live: the production checkout was running sandbox (found 2026-11-03).**
+  `/pay` on ozzily.com served `PADDLE_ENV = "sandbox"` with a `test_` client token and sandbox
+  `pri_...` ids. **A sandbox checkout on the live domain is the dangerous failure mode**, not an
+  inert one: it renders, it completes, it takes no money, and the customer believes they have
+  paid. The existing guard only caught an unfilled `PASTE_` placeholder, which a real sandbox
+  token sails straight past -- a guard against the placeholder is not a guard against the wrong
+  *environment*. Config is now a sandbox/production pair selected on `location.hostname`, so the
+  sandbox token cannot load on the apex by construction, and the guard refuses on an empty
+  production block. Verified by extracting the real block from the file and running it against
+  four hostnames rather than retyping it: apex and www refuse, `localhost` and `*.vercel.app`
+  still open sandbox so preview stays testable. Confirmed live.
+- **Evidence beats the dashboard when the dashboard is unreachable.** I could not sign in to
+  Paddle (entering credentials is off-limits), but the question "is Paddle set up" was already
+  answered conclusively by the system: sandbox token on prod, **0 rows in `payments`**, 0
+  `preferred_plan`, 0 `billing` rows in `scheduled_messages`, and **no billing scenario in Make
+  at all** -- `scenarios_list` shows only AI Brain and Daily Check-ins active, with Signup and
+  Login correctly inactive. Scenario 4 was never built, so nothing calls `get_billing_due()`.
+  Don't block on an inaccessible console when the integration's own state is readable.
+- **Do not build-and-activate the billing beat before production Paddle exists.** The day-4 SMS
+  is easy to build and would have been actively harmful: it would text real users a link to a
+  sandbox checkout. The sequencing is production prices and token first, then the scenario.
+- **`scheduled_messages` has no `kind` column -- it is `message_kind`.** Cost one failed query;
+  noted because the billing beat work will touch this table and `mark_checkin_delivered()`
+  keys off that column. `users` has no `trial_ends_at` either.

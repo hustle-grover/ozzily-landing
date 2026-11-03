@@ -86,15 +86,33 @@
   // The client-side token is PUBLIC by design: Paddle.js runs in the browser and
   // this is the value it is meant to expose. It is not the API key -- the API key
   // is server-side only and must never appear here.
-  // Swap both of these when moving from sandbox to production; keys and price ids
-  // are environment-specific and do not interchange.
-  var PADDLE_ENV          = "sandbox";                 // "sandbox" | "production"
-  var PADDLE_CLIENT_TOKEN = "test_c408be9a297485ca061df4e7b1a";
-
-  var PRICE_IDS = {
-    monthly: "pri_01m632mtgmf8n9tcdshyhp8gr7",
-    annual:  "pri_01m632prc3s7s6538jh5d2237s"
+  // Sandbox and production are entirely separate Paddle systems: client tokens,
+  // price ids and webhook signing secrets do not interchange. Both sets live here
+  // and are selected by hostname, so going live means filling in the production
+  // block rather than editing four scattered literals and hoping none was missed.
+  var PADDLE_CONFIG = {
+    sandbox: {
+      token:  "test_c408be9a297485ca061df4e7b1a",
+      prices: { monthly: "pri_01m632mtgmf8n9tcdshyhp8gr7",
+                annual:  "pri_01m632prc3s7s6538jh5d2237s" }
+    },
+    production: {
+      // Paddle (live account): Developer tools > Authentication for the client-side
+      // token, Catalog > Products for the two price ids. Both prices must carry NO
+      // trial -- the 3-day trial runs over SMS and the site promises no card up front,
+      // so a Paddle trial would collect a card and contradict four published claims.
+      token:  "",
+      prices: { monthly: "", annual: "" }
+    }
   };
+
+  var PRODUCTION_HOSTS = ["ozzily.com", "www.ozzily.com"];
+  var PADDLE_ENV = PRODUCTION_HOSTS.indexOf(location.hostname) === -1
+                 ? "sandbox"
+                 : "production";
+
+  var PADDLE_CLIENT_TOKEN = PADDLE_CONFIG[PADDLE_ENV].token;
+  var PRICE_IDS           = PADDLE_CONFIG[PADDLE_ENV].prices;
 
   // -------------------------------------------------------------- elements
   var statusEl  = document.getElementById("status");
@@ -146,9 +164,13 @@
     return;
   }
 
-  if (PADDLE_CLIENT_TOKEN.indexOf("PASTE_") === 0) {
-    say("error", "Checkout is not configured yet.",
-        "The Paddle client-side token has not been set on this page.");
+  // Fail closed. A sandbox checkout served on the live domain is the dangerous
+  // case: it looks like it worked, takes no money, and leaves the customer
+  // believing they have paid. Selecting config by hostname makes that impossible,
+  // and this guard catches the production block not being filled in yet.
+  if (!PADDLE_CLIENT_TOKEN || !PRICE_IDS.monthly || !PRICE_IDS.annual) {
+    say("error", "Checkout is not available yet.",
+        "Payments are not switched on yet. Please reply to Ozzily and we will sort it out.");
     return;
   }
 

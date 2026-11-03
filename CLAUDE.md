@@ -766,3 +766,23 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
   accessibility-hardened to AA. It surfaced only because adding the canonical put me in the
   `<html>` tag of every page at once, which is the general lesson: a sweep that touches the same
   construct across every file is the cheapest time to spot the file that differs.
+
+- **Search Console: property created, verification deferred (2026-11-03).** `robots.txt` and
+  `sitemap.xml` are live, and that is the part that actually matters -- Google discovers a
+  sitemap from the `Sitemap:` line in `robots.txt` on its own, so **submission is not required
+  for indexing**. What Search Console adds is *reporting*: which URLs are indexed, which were
+  excluded and why. Useful, not blocking.
+  State to resume from, on `kiwi.furnishings@gmail.com`:
+  - A **URL-prefix** property `https://ozzily.com/` exists and is **unverified**. The welcome
+    screen shows "Already started? Finish verification", so it resumes in one click.
+  - Verification file Google issued: **`googled3f9b48761e7a854.html`**, whose body is the single
+    line `google-site-verification: googled3f9b48761e7a854.html`. Not a secret -- it is designed
+    to be served publicly, and it only proves ownership when served *from ozzily.com*, which
+    nobody else can do. Drop it at the repo root (`outputDirectory: "."` serves it), push, then
+    click VERIFY, then submit `sitemap.xml`.
+  - **A domain property (`sc-domain:ozzily.com`) was not an option for me.** It needs a DNS TXT
+    record, and `get_domain_config` shows nameservers `dns1/dns2.registrar-servers.com` with
+    `serviceType: "external"` -- DNS is at **Namecheap**, not Vercel, so the Vercel DNS tools
+    cannot reach it. A domain property would cover www, http and all subdomains rather than just
+    the apex; it needs a Namecheap TXT record. URL-prefix on the apex is adequate here only
+    because www 308-redirects to apex, so no content lives anywhere else.

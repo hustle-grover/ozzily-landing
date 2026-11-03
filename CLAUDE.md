@@ -743,3 +743,26 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
   credentials (the `eyJ`-looking hits were case-insensitive matches inside the image bytes, not
   JWTs -- a real one needs exact case and three dot-separated segments). Confirm what loads a
   file before calling it cruft.
+
+- **Do not `Disallow` a page whose `noindex` you are relying on.** `pay.html` already carries
+  `<meta name="robots" content="noindex, nofollow">`, and the obvious instinct was to also
+  disallow `/pay` in `robots.txt`. That combination is self-defeating: a disallowed URL is never
+  fetched, so the crawler never reads the `noindex`, and the bare URL can still be indexed by
+  reference from inbound links. Allowing the fetch is what makes the `noindex` effective.
+  `robots.txt` therefore allows everything and the exclusion lives in the page. Same reason
+  `.image-slots.state.json` is left crawlable: it carries the mascot images the landing page
+  renders, and blocking a needed subresource degrades how renderers see the page.
+- **A sitemap must list URLs the server actually serves, which is not the same as the files.**
+  `/terms` and `/privacy` return **404** -- only `/pay` and `/login` have `vercel.json`
+  rewrites -- so the sitemap lists `/terms.html` and `/privacy.html`. Meanwhile `/login` *and*
+  `/login.html`, and `/` *and* `/index.html`, all return 200, so publishing a sitemap without
+  canonicals would have advertised one of each duplicate pair while leaving the other equally
+  indexable. Added `rel="canonical"` to all four indexable pages, pointing at the clean URL
+  (`/login`, not `/login.html`). **Curl every path before putting it in a sitemap** -- priority
+  and changefreq are ignored by Google and were left out, but `lastmod` is used, so it is taken
+  from `git log -1 --format=%cs` per file rather than invented.
+- **`index.html` was missing `lang="en"` while all four other pages had it.** WCAG 3.1.1, on the
+  one page that matters most, in a project whose notes claim the landing page is
+  accessibility-hardened to AA. It surfaced only because adding the canonical put me in the
+  `<html>` tag of every page at once, which is the general lesson: a sweep that touches the same
+  construct across every file is the cheapest time to spot the file that differs.

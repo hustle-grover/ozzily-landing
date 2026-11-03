@@ -1,0 +1,17 @@
+# ozzily.com
+# Apex is canonical; www 308-redirects here.
+
+User-agent: *
+Allow: /
+
+# Note on /pay: it is deliberately NOT disallowed. The page carries
+# <meta name="robots" content="noindex, nofollow">, and a robots.txt Disallow
+# would stop crawlers fetching the page and therefore reading that tag, which
+# can leave the bare URL indexed by reference instead. Allowing the fetch is
+# what makes the noindex effective.
+
+# .image-slots.state.json is also left crawlable on purpose: it carries the
+# mascot images the landing page renders, and blocking a needed subresource
+# degrades how renderers see the page.
+
+Sitemap: https://ozzily.com/sitemap.xml

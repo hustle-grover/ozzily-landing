@@ -686,3 +686,23 @@ Supabase `service_role` key, Twilio SID/auth token, and Stripe keys live in a lo
   (`grand_total = earnings + fee + tax`, 2900 = 2473 + 195 + 232) and an unsettled one
   stores `tax` with `fee`/`earnings` null — and the `provider_event_id` idempotency guard
   still makes a replay a no-op after the signature change.
+
+- **A pricing claim has to be audited on every page that shows a price, not the two you were
+  asked about.** The tax-inclusive copy was scoped to `index.html` and `terms.html`, but
+  `grep -o '\$29\|\$249'` across all five pages found `pay.html` carrying bare `$29` / `$249` --
+  the actual checkout page, where a tax statement matters most, and the one page where it named
+  Paddle only as "secure checkout" with no merchant-of-record disclosure. Shipping the two
+  approved pages alone would have left the checkout silent on tax while the pricing page
+  promised it, which is worse than either state. Audit by grepping the *claim's subject* (the
+  price) across every page, not by editing the files named in the request.
+- **Paddle is the merchant of record and that was disclosed nowhere.** It issues the receipt,
+  appears on the card statement, and collects and remits sales tax or VAT. The disclosure says
+  "Paddle" rather than a legal entity on purpose, because Paddle uses different ones by region
+  -- **replace it with the exact name from the Paddle dashboard before launch**, and treat the
+  GST/FEMA side as a question for the CA.
+- **Do not introduce a heading level a page's CSS does not define.** `terms.html` styles `h1`
+  and `h2` only, so the new `<h3>` rendered as an unstyled browser default (bigger, wrong face)
+  next to the styled `h2`s. `grep -n 'h3' terms.html` returned exactly one hit -- the line just
+  added -- which is the tell. Rewritten as the page's existing `<p><strong>lead-in:</strong>`
+  pattern, verified identical to the surrounding `li` text (16px, same colour, weight 700).
+  Check a new tag against the stylesheet before assuming it inherits anything.

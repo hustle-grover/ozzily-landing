@@ -671,6 +671,31 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
   (`grand_total = earnings + fee + tax`, 2900 = 2473 + 195 + 232) and an unsettled one
   stores `tax` with `fee`/`earnings` null — and the `provider_event_id` idempotency guard
   still makes a replay a no-op after the signature change.
+- **`tax`, `fee` and `earnings` all arrive at PURCHASE time, not at settlement.** The
+  bullet above says Paddle fills `fee` and `earnings` only once a transaction settles.
+  The first real sandbox checkout (2026-11-05) disproved that: the
+  `transaction.completed` event carried all three immediately and reconciled on the spot
+  -- **2900 = 2263 earnings + 195 fee + 442 tax**. So a `payments` row is complete from
+  the moment it is written, and "what did we keep" is answerable without waiting or
+  backfilling. Compare with the earlier simulated figures, 2900 = 2473 + 195 + 232: the
+  **fee was identical (195) and only the tax moved**, because tax is jurisdictional and
+  the simulation used a different one. Keeping the three columns **nullable is still
+  correct** -- it costs nothing and a null is an honest "not told" where a 0 would be a
+  false statement -- but do not design anything around the assumption that they are
+  absent at first. Verify on the live account rather than carrying this over: sandbox is
+  a separate system, and nothing about live payouts is proven by it.
+- **The two failure mappings have never been exercised, in any environment.**
+  `apply_payment_event()` maps `transaction.payment_failed` to a `failed` payment row
+  plus `past_due`, and `adjustment.updated` to `refunded`. Every test so far has been a
+  success path -- purchase, activation, cancellation -- so both remain untested, which by
+  this project's own rule ("test the refusal path and the success path") means untested
+  in the direction that matters. `transaction.payment_failed` is also the only path that
+  writes `failure_reason`, and the webhook currently hardcodes `p_failure_reason: null`,
+  so that column cannot populate as things stand -- a bug visible only by reading the
+  two together. The refund side has a separate known gap recorded further down
+  (`adjustment.created` is unmapped and the adjustment id is mis-passed as the
+  subscription id). Exercise both with Paddle simulations before launch; a dunning
+  failure that silently does nothing is a customer who keeps service without paying.
 
 - **A pricing claim has to be audited on every page that shows a price, not the two you were
   asked about.** The tax-inclusive copy was scoped to `index.html` and `terms.html`, but

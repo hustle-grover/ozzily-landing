@@ -79,5 +79,5 @@ select message_kind, direction, count(*) as rows,
 Every table has RLS enabled with **zero** permissive policies — full lockdown.
 All access is server-side through Make.com with the `service_role` key; the
 `anon` key is deliberately unused. `get_advisors` reports this as
-`rls_enabled_no_policy` (INFO) on all six tables, which is expected and not a
+`rls_enabled_no_policy` (INFO) on all nine tables, which is expected and not a
 finding.

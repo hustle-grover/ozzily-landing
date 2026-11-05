@@ -842,12 +842,54 @@ a credential by name is fine; its value is not.
   `users.plan` is **never labelled even after a successful payment** -- monthly and annual
   subscribers become indistinguishable. Nothing errors. Set both when the production prices
   exist, in the same change as `PADDLE_WEBHOOK_SECRET`.
+- **Price ids differ per environment, so the cutover must ADD `_SANDBOX` twins, never
+  overwrite the plain pair.** Decided 2026-11-04: keep `PADDLE_PRICE_ID_MONTHLY` /
+  `PADDLE_PRICE_ID_ANNUAL` as the **live** values and add
+  `PADDLE_PRICE_ID_MONTHLY_SANDBOX` / `PADDLE_PRICE_ID_ANNUAL_SANDBOX`, selected by the
+  signature-derived `verdict.env` -- the same pattern as `PADDLE_WEBHOOK_SECRET_SANDBOX`,
+  and deleted in the same cleanup. **The hazard: overwriting the plain pair with the live
+  ids without adding the `_SANDBOX` variables makes every sandbox event match nothing, so
+  `plan` goes null with no error anywhere** -- the identical silent shape to the unset-secret
+  gap above. A comma-separated list was rejected: the environment is already known, and known
+  from the *signature* rather than the payload, so a union match throws away the most
+  trustworthy fact in the request and would label a live event `monthly` off a sandbox price
+  id, hiding the misconfiguration that produced it. Separate variables make that case
+  `plan = null`, which is visible. During the sandbox-only window the plain pair deliberately
+  holds the **sandbox** ids, because deployed `planForPriceId()` is not yet environment-aware.
 - **A 401 from `paddle-webhook` does not distinguish "no secret set" from "wrong signature".**
-  Both fail closed, which is correct, and both look identical from outside. Only a request
-  signed with the real secret proves the secret is configured. A probe that settles it without
-  writing a `payments` row -- it names an unresolvable `user_id`, so `apply_payment_event()`
-  returns `ok:false` -- is kept out of the repo in the session scratchpad, since it needs the
-  secret in its environment.
+  Both fail closed, which is correct, and both look identical from outside, so only a request
+  signed with the real secret settles it. **Settled for sandbox on 2026-10-29 and no probe is
+  needed:** Paddle's simulated `subscription.created` returned 401, then 200 once the secret
+  was corrected, and a real sandbox checkout then wrote a `payments` row. The Credentials Vault
+  records this. The same ambiguity returns unresolved for **live**, which has its own
+  destination and its own signing secret.
+- **`PADDLE_WEBHOOK_SECRET` is a single value, so one deployment cannot verify both sandbox and
+  live.** `verify()` HMACs against exactly one `SECRET`; sandbox and live are separate Paddle
+  systems with separate destinations and separate secrets, so whichever one is set, the other
+  environment's events all return 401. To keep sandbox testable across the cutover the function
+  must accept a **list** of secrets and succeed if any matches. The secret that matched is then
+  the only trustworthy environment tag available -- it is derived from the signature rather than
+  from the payload -- which matters because a sandbox-signed event would otherwise write sandbox
+  ids into the live `payments` table through the same `apply_payment_event()`. Keep the overlap
+  to days and drop the sandbox secret once live is proven.
+- **A refund will almost certainly NOT be recorded, which matters because reversing a live test
+  purchase is the plan.** `apply_payment_event()` maps only `adjustment.updated` to `refunded`;
+  `adjustment.created` falls to `else null`, so no `payments` row is written and the event is a
+  verified no-op. Worse, `paddle-webhook` computes `isTransaction` from the `transaction.`
+  prefix, so on any `adjustment.*` event `data.id` -- the adjustment id -- is passed as
+  `p_provider_subscription_id`. It fails safe (no match means `ok:false`, never a
+  mis-attribution) but the refund is lost. Confirm the live destination subscribes to
+  `adjustment.*` at all, then fix by treating `adjustment.*` like transactions: read the
+  payload's own `transaction_id`/`subscription_id` and map `adjustment.created` as well.
+- **Nothing configured in Paddle sandbox carries over to live.** The live account is a separate
+  system, so every sandbox setting has to be made again there: both prices **tax inclusive**,
+  `ozzily.com/pay` as the **default payment link**, **no trial** on either price, the
+  notification destination (with its own signing secret, and the same event list), and the
+  event subscriptions. A setting that exists only in sandbox reads as "already done" in the
+  dashboard you are not looking at.
+- **Do not create a live API key until cancel-by-text is built.** The site promises cancel by
+  text, which needs write access to subscriptions; until that function exists the key grants
+  more than anything uses, and a read-only need does not justify it.
 - **Make hook 2997965 is reserved for the OUTBOUND "payment received" SMS and is idle by
   design.** Paddle does not point at it and must not: signature verification needs raw bytes
   that Make destroys by parsing. Do not "fix" the idle hook.

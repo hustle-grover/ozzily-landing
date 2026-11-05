@@ -29,6 +29,22 @@ create table public.messages (
   created_at               timestamp with time zone not null default now()
 );
 
+create table public.payment_events_refused (
+  id                       uuid not null default gen_random_uuid(),
+  event_id                 text not null,
+  event_type               text,
+  environment              text,
+  user_id                  uuid,
+  reason                   text not null,
+  created_at               timestamp with time zone not null default now()
+);
+
+create table public.payment_test_users (
+  user_id                  uuid not null,
+  note                     text,
+  added_at                 timestamp with time zone not null default now()
+);
+
 create table public.payments (
   id                       uuid not null default gen_random_uuid(),
   user_id                  uuid not null,
@@ -44,7 +60,8 @@ create table public.payments (
   provider                 text not null default 'paddle'::text,
   tax_cents                integer,
   fee_cents                integer,
-  earnings_cents           integer
+  earnings_cents           integer,
+  environment              text not null default 'live'::text
 );
 
 create table public.scheduled_messages (
@@ -131,9 +148,15 @@ alter table public.messages add constraint messages_pkey PRIMARY KEY (id);
 alter table public.messages add constraint messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 alter table public.messages add constraint messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text])));
 alter table public.messages add constraint messages_message_kind_check CHECK ((message_kind = ANY (ARRAY['onboarding'::text, 'morning_checkin'::text, 'midday_checkin'::text, 'evening_checkin'::text, 'recap'::text, 'meal_photo'::text, 'workout_photo'::text, 'meal_log'::text, 'workout_log'::text, 'side_effect'::text, 'billing'::text, 'system'::text, 'freeform'::text])));
+alter table public.payment_events_refused add constraint payment_events_refused_event_id_key UNIQUE (event_id);
+alter table public.payment_events_refused add constraint payment_events_refused_pkey PRIMARY KEY (id);
+alter table public.payment_events_refused add constraint payment_events_refused_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+alter table public.payment_test_users add constraint payment_test_users_pkey PRIMARY KEY (user_id);
+alter table public.payment_test_users add constraint payment_test_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 alter table public.payments add constraint payments_provider_event_id_key UNIQUE (provider_event_id);
 alter table public.payments add constraint payments_pkey PRIMARY KEY (id);
 alter table public.payments add constraint payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+alter table public.payments add constraint payments_environment_check CHECK ((environment = ANY (ARRAY['live'::text, 'sandbox'::text])));
 alter table public.payments add constraint payments_plan_check CHECK ((plan = ANY (ARRAY['monthly'::text, 'annual'::text])));
 alter table public.payments add constraint payments_provider_check CHECK ((provider = ANY (ARRAY['paddle'::text, 'stripe'::text, 'razorpay'::text, 'manual'::text])));
 alter table public.payments add constraint payments_status_check CHECK ((status = ANY (ARRAY['succeeded'::text, 'failed'::text, 'refunded'::text, 'pending'::text])));
@@ -165,6 +188,7 @@ alter table public.verification_attempts add constraint verification_attempts_ou
 CREATE INDEX affiliate_clicks_user_idx ON public.affiliate_clicks USING btree (user_id, created_at DESC);
 CREATE INDEX messages_kind_idx ON public.messages USING btree (message_kind);
 CREATE INDEX messages_user_created_idx ON public.messages USING btree (user_id, created_at DESC);
+CREATE INDEX payment_events_refused_created_at_idx ON public.payment_events_refused USING btree (created_at DESC);
 CREATE INDEX payments_user_idx ON public.payments USING btree (user_id, created_at DESC);
 CREATE INDEX scheduled_messages_due_idx ON public.scheduled_messages USING btree (scheduled_for) WHERE (status = 'pending'::text);
 CREATE UNIQUE INDEX uq_scheduled_messages_beat_claim ON public.scheduled_messages USING btree (user_id, message_kind, local_date);
@@ -182,6 +206,8 @@ CREATE INDEX verification_attempts_phone_idx ON public.verification_attempts USI
 
 alter table public.affiliate_clicks enable row level security;
 alter table public.messages enable row level security;
+alter table public.payment_events_refused enable row level security;
+alter table public.payment_test_users enable row level security;
 alter table public.payments enable row level security;
 alter table public.scheduled_messages enable row level security;
 alter table public.streaks enable row level security;

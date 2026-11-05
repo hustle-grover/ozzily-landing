@@ -13,6 +13,19 @@
 -- trigger_checkins_if_due() with the placeholder <MAKE_CHECKIN_HOOK_URL>,
 -- because this repository is public. The generator below applies the same
 -- replacement so the md5 matches the committed file.
+--
+-- The redaction is done by REGEX, deliberately. An earlier version asked the
+-- operator to paste the real hook URL into the query so a literal replace()
+-- could find it -- which pushed the secret through a query, a terminal and a
+-- tool log on every regeneration, for no benefit. Matching the URL's shape
+-- finds it without anyone ever handling it. Verify the regex still matches
+-- exactly one occurrence before trusting a regenerated md5:
+--   select count(*) from regexp_matches(
+--            pg_get_functiondef(p.oid), 'https://hook\.[^'']*', 'g')
+--     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname = 'public' and p.proname = 'trigger_checkins_if_due';
+-- A count of 0 means the redaction silently did nothing and the file would
+-- carry the live URL; a count above 1 means there is a second URL to review.
 
 
 -- ========================================================== 01_tables.sql
@@ -92,14 +105,18 @@ f as (
     E'-- is the grant that matters. Verify with the audit query in README.md.\n\n',
     (select s from grants), E'\n') as c
 )
--- Substitute <HOOK_URL> below with the real check-in hook URL from the Notion
--- Credentials Vault. The replacement is what keeps the live URL out of this
--- public repository, and applying it here is what makes the md5 match the
--- committed 02_functions.sql.
-select md5(replace(c, '<HOOK_URL>', '<MAKE_CHECKIN_HOOK_URL>'))    as md5,
-       length(replace(c, '<HOOK_URL>', '<MAKE_CHECKIN_HOOK_URL>')) as chars,
-       replace(c, '<HOOK_URL>', '<MAKE_CHECKIN_HOOK_URL>')         as content
-  from f;
+-- The regexp_replace is what keeps the live URL out of this public repository,
+-- and applying it here is what makes the md5 match the committed
+-- 02_functions.sql. No secret is needed to run this.
+with red as (
+  select regexp_replace(c, 'https://hook\.[^'']*', '<MAKE_CHECKIN_HOOK_URL>', 'g') as c
+    from f
+)
+select md5(c) as md5, length(c) as chars, c as content,
+       -- Guards: refuse to trust the output if the redaction did not happen.
+       (c ~ 'hook\.')                   as has_live_hook_url_MUST_BE_FALSE,
+       (c ~ '<MAKE_CHECKIN_HOOK_URL>')  as has_placeholder_MUST_BE_TRUE
+  from red;
 
 
 -- ======================================================== 03_triggers.sql

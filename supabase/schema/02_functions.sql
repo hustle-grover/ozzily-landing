@@ -207,7 +207,7 @@ end;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text, p_paddle_status text DEFAULT NULL::text, p_next_billed_at text DEFAULT NULL::text, p_tax_cents text DEFAULT NULL::text, p_fee_cents text DEFAULT NULL::text, p_earnings_cents text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text, p_paddle_status text DEFAULT NULL::text, p_next_billed_at text DEFAULT NULL::text, p_tax_cents text DEFAULT NULL::text, p_fee_cents text DEFAULT NULL::text, p_earnings_cents text DEFAULT NULL::text, p_environment text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -229,6 +229,7 @@ declare
   v_fee        integer := nullif(btrim(coalesce(p_fee_cents,'')),'')::integer;
   v_earn       integer := nullif(btrim(coalesce(p_earnings_cents,'')),'')::integer;
   v_plan       text := lower(nullif(btrim(coalesce(p_plan,'')),''));
+  v_env        text := lower(btrim(coalesce(p_environment,'')));
   v_inserted   boolean := false;
   v_applied    boolean := false;
   v_skipped    text;
@@ -237,6 +238,24 @@ declare
 begin
   if v_eid is null then
     return jsonb_build_object('ok', false, 'error', 'missing event id');
+  end if;
+
+  -- Fail closed on a missing or unrecognised environment rather than guessing live. A
+  -- caller that cannot say which secret matched is a caller that must not apply
+  -- anything. An empty string lands here too, which is what the not-yet-updated
+  -- webhook produces, so the deploy window refuses rather than applies.
+  if v_env not in ('live','sandbox') then
+    insert into public.payment_events_refused
+      (event_id, event_type, environment, user_id, reason)
+    values (v_eid, v_event, nullif(v_env,''), null,
+            'missing or unrecognised environment; caller did not say which signing secret matched')
+    on conflict (event_id) do nothing;
+
+    raise warning 'apply_payment_event: refused event % (%) for unrecognised environment %',
+                  v_eid, v_event, coalesce(nullif(v_env,''), '(none)');
+    return jsonb_build_object('ok', false, 'error', 'unrecognised environment',
+                              'environment', coalesce(nullif(v_env,''), '(none)'),
+                              'event_id', v_eid);
   end if;
 
   v_uid := nullif(btrim(coalesce(p_user_id,'')),'')::uuid;
@@ -252,8 +271,49 @@ begin
   end if;
 
   if v_uid is null or not exists (select 1 from public.users where id = v_uid) then
+    -- Recorded for BOTH environments, not just live. A ledger that covers only some
+    -- refusal kinds answers "did the guard fire" but not "what did we drop", and an
+    -- unattributable live payment is the single most expensive thing to lose silently.
+    insert into public.payment_events_refused
+      (event_id, event_type, environment, user_id, reason)
+    values (v_eid, v_event, v_env, null,
+            'user not resolved from custom_data.user_id, provider_subscription_id or provider_customer_id')
+    on conflict (event_id) do nothing;
+
+    raise warning 'apply_payment_event: refused % event % (%): user not resolved',
+                  v_env, v_eid, v_event;
     return jsonb_build_object('ok', false, 'error', 'user not resolved',
-                              'event_id', v_eid, 'event_type', v_event);
+                              'event_id', v_eid, 'event_type', v_event,
+                              'environment', v_env);
+  end if;
+
+  -- THE GUARD. A sandbox event may only touch an allowlisted test user. This sits
+  -- ahead of every write below, including the provider-id update, because a sandbox
+  -- customer id written onto a real user would corrupt the live resolution path for
+  -- every later event.
+  --
+  -- Returns ok:true so the caller answers 2xx and Paddle stops retrying: a sandbox
+  -- event aimed at a real user will never become applicable. The refusal is recorded
+  -- in payment_events_refused, in the Postgres log, and in the return value.
+  if v_env = 'sandbox'
+     and not exists (select 1 from public.payment_test_users t where t.user_id = v_uid) then
+    insert into public.payment_events_refused
+      (event_id, event_type, environment, user_id, reason)
+    values (v_eid, v_event, v_env, v_uid,
+            'sandbox event for a user that is not in payment_test_users')
+    on conflict (event_id) do nothing;
+
+    raise warning 'apply_payment_event: refused sandbox event % (%) for non-test user %',
+                  v_eid, v_event, v_uid;
+    return jsonb_build_object(
+      'ok', true,
+      'user_id', v_uid,
+      'event_type', v_event,
+      'environment', v_env,
+      'payment_recorded', false,
+      'status_change_applied', false,
+      'skipped_reason', 'sandbox event for a user that is not in payment_test_users; nothing was written'
+    );
   end if;
 
   v_sub_status := case v_pstatus
@@ -294,14 +354,14 @@ begin
     insert into public.payments
       (user_id, provider, provider_event_id, provider_transaction_id,
        amount_cents, currency, status, plan, failure_reason,
-       tax_cents, fee_cents, earnings_cents)
+       tax_cents, fee_cents, earnings_cents, environment)
     values
       (v_uid, 'paddle', v_eid, nullif(btrim(coalesce(p_provider_transaction_id,'')),''),
        coalesce(v_amount, 0), coalesce(nullif(lower(btrim(coalesce(p_currency,''))),''), 'usd'),
        v_pay_status,
        case when v_plan in ('monthly','annual') then v_plan else null end,
        nullif(btrim(coalesce(p_failure_reason,'')),''),
-       v_tax, v_fee, v_earn)
+       v_tax, v_fee, v_earn, v_env)
     on conflict (provider_event_id) do nothing;
 
     v_inserted := found;
@@ -346,6 +406,7 @@ begin
     'ok', true,
     'user_id', v_uid,
     'event_type', v_event,
+    'environment', v_env,
     'payment_recorded', v_inserted,
     'status_change_applied', v_applied,
     'mapped_status', coalesce(v_sub_status, '(none)'),
@@ -1227,8 +1288,8 @@ revoke all on function public.ai_brain_system_prompt() from public, anon, authen
 grant execute on function public.ai_brain_system_prompt() to service_role;
 revoke all on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) from public, anon, authenticated;
 grant execute on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) to service_role;
-revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text) from public, anon, authenticated;
-grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text) to service_role;
+revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text, p_environment text) from public, anon, authenticated;
+grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text, p_environment text) to service_role;
 revoke all on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) from public, anon, authenticated;
 grant execute on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) to service_role;
 revoke all on function public.checkin_delivery_health() from public, anon, authenticated;

@@ -64,13 +64,25 @@
   .success.show { display:flex; }
   .success span.tick { font-size:22px; line-height:1; }
   .success p { margin:0; font-size:15.5px; font-weight:600; color:#33512A; line-height:1.5; }
+  .nav-right{ display:flex; align-items:center; gap:18px; }
+  .nav-link{ font-size:14px; font-weight:600; color:#5A4A7D; text-decoration:none; }
+  .nav-link:hover{ text-decoration:underline; }
+  footer{ background:#3B2E5A; padding:44px 22px; }
+  .foot-inner{ max-width:1000px; margin:0 auto; display:flex; flex-wrap:wrap; gap:20px; align-items:center; justify-content:space-between; }
+  .foot-links{ display:flex; gap:22px; flex-wrap:wrap; }
+  .foot-links a{ color:rgba(255,253,249,0.72); font-size:14px; text-decoration:none; }
+  .foot-links a:hover{ color:#FF9F43; }
+  .foot-brand{ font-family:'Baloo 2', cursive; font-weight:800; font-size:20px; color:#FFF8EF; text-decoration:none; }
 </style>
 </head>
 <body>
 
 <header>
   <a href="index.html" class="logo"><svg viewBox="0 -18 120 134" width="30" height="34" aria-hidden="true" style="overflow:visible;"><defs><linearGradient id="ozzLnav" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC170"></stop><stop offset="0.55" stop-color="#FF9F43"></stop><stop offset="1" stop-color="#F1801F"></stop></linearGradient></defs><path d="M62 -14 C60 -6 58 -1 60 6" stroke="#6F9C5C" stroke-width="5" stroke-linecap="round" fill="none"></path><ellipse cx="71" cy="-9" rx="9" ry="5" fill="#6F9C5C" transform="rotate(-18 71 -9)"></ellipse><path d="M60 6 C90 6 111 28 112 56 C113 86 92 110 59 110 C28 110 8 87 9 57 C10 28 32 6 60 6 Z" fill="url(#ozzLnav)"></path><ellipse cx="45" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse><ellipse cx="78" cy="56" rx="11" ry="14" fill="#FFFDF9"></ellipse><circle cx="46" cy="58" r="5" fill="#3B2E5A"></circle><circle cx="79" cy="58" r="5" fill="#3B2E5A"></circle></svg>Ozzily</a>
-  <a href="index.html#signup" class="top-cta">New to Ozzily? Get started →</a>
+  <div class="nav-right">
+    <a href="refunds.html" class="nav-link">Refunds</a>
+    <a href="index.html#signup" class="top-cta">New to Ozzily? Get started →</a>
+  </div>
 </header>
 
 <main>
@@ -131,6 +143,19 @@
     </div>
   </div>
 </main>
+
+<footer>
+  <div class="foot-inner">
+    <a href="index.html" class="foot-brand">Ozzily</a>
+    <div class="foot-links">
+      <a href="index.html">Home</a>
+      <a href="refunds.html">Refunds</a>
+      <a href="terms.html">Terms of Service</a>
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="index.html#faq">FAQ</a>
+    </div>
+  </div>
+</footer>
 
 <script>
   // Deliberately EMPTY while the "Ozzily Login" scenario (6333754) is switched off,

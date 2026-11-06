@@ -21,7 +21,10 @@
   :focus-visible{ outline:3px solid #C97614; outline-offset:3px; border-radius:8px; }
 
   .wrap{ max-width:460px; margin:0 auto; padding:40px 22px 64px; }
-  .logo{ display:flex; align-items:center; gap:9px; font-family:'Baloo 2'; font-weight:800; font-size:22px; color:#3B2E5A; text-decoration:none; margin-bottom:28px; }
+  .topbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:28px; }
+  .logo{ display:flex; align-items:center; gap:9px; font-family:'Baloo 2'; font-weight:800; font-size:22px; color:#3B2E5A; text-decoration:none; }
+  .topbar a.nav-link{ font-size:14px; font-weight:600; color:#6B5D8A; text-decoration:none; }
+  .topbar a.nav-link:hover{ text-decoration:underline; }
   .logo-badge{ width:28px; height:28px; border-radius:999px; background:linear-gradient(140deg,#FFC170,#F1801F); }
 
   .card{ background:#FFFDF9; border:1px solid rgba(59,46,90,0.08); border-radius:20px; padding:24px 22px; }
@@ -51,11 +54,14 @@
 <body>
 
 <main class="wrap">
-  <a href="/" class="logo"><span class="logo-badge" aria-hidden="true"></span>Ozzily</a>
+  <div class="topbar">
+    <a href="/" class="logo"><span class="logo-badge" aria-hidden="true"></span>Ozzily</a>
+    <a href="/refunds.html" class="nav-link">Refunds &amp; cancellation</a>
+  </div>
 
   <div class="card">
     <h1 id="heading">Finish setting up</h1>
-    <p id="intro">One step and your coach is live. Secure checkout is handled by Paddle.com Market Limited, the merchant of record for your purchase. Prices include tax.</p>
+    <p id="intro">One step and your coach is live. Secure checkout is handled by Paddle.com Market Limited, the merchant of record for your purchase. Paddle handles order processing, payments, tax, customer service enquiries about your order, and returns and refunds. Prices include tax. Full refund within 30 days if it isn't for you.</p>
 
     <div class="plans" id="plans" hidden>
       <button class="plan" type="button" data-plan="monthly">
@@ -73,7 +79,7 @@
   </div>
 
   <footer>
-    <a href="/terms.html">Terms</a> &middot; <a href="/privacy.html">Privacy</a>
+    <a href="/refunds.html">Refunds</a> &middot; <a href="/terms.html">Terms</a> &middot; <a href="/privacy.html">Privacy</a>
   </footer>
 </main>
 

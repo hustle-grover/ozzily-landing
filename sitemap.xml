@@ -2,24 +2,29 @@
 <!--
   Only canonical, indexable URLs belong here.
   /pay is omitted: it is noindex and needs a per-user uid to do anything.
-  Paths match what the server actually serves: /terms and /privacy 404, so the
-  .html URLs are the real ones; /login is the clean rewrite and is canonical.
+  Paths match what the server actually serves: /terms, /privacy and /refunds all
+  404, because vercel.json only rewrites /pay and /login, so the .html URLs are
+  the real ones. /login is the clean rewrite and is canonical.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://ozzily.com/</loc>
-    <lastmod>2026-11-03</lastmod>
+    <lastmod>2026-11-06</lastmod>
   </url>
   <url>
     <loc>https://ozzily.com/login</loc>
-    <lastmod>2026-11-02</lastmod>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://ozzily.com/refunds.html</loc>
+    <lastmod>2026-11-06</lastmod>
   </url>
   <url>
     <loc>https://ozzily.com/terms.html</loc>
-    <lastmod>2026-11-03</lastmod>
+    <lastmod>2026-11-06</lastmod>
   </url>
   <url>
     <loc>https://ozzily.com/privacy.html</loc>
-    <lastmod>2026-11-03</lastmod>
+    <lastmod>2026-11-06</lastmod>
   </url>
 </urlset>

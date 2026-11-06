@@ -22,6 +22,7 @@
   nav{ max-width:900px; margin:0 auto; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; }
   .logo{ display:flex; align-items:center; gap:9px; font-family:'Baloo 2'; font-weight:800; font-size:22px; color:#3B2E5A; }
   .logo-badge{ width:28px; height:28px; border-radius:999px; background:linear-gradient(140deg,#FFC170,#F1801F); }
+  .nav-right{ display:flex; align-items:center; gap:18px; }
   .back{ font-size:14px; font-weight:600; color:#5A4A7D; }
 
   main{ max-width:760px; margin:0 auto; padding:56px 22px 90px; }
@@ -54,7 +55,10 @@
 <header>
   <nav>
     <a href="index.html" class="logo"><span class="logo-badge"></span>Ozzily</a>
-    <a href="index.html" class="back">← Back to home</a>
+    <div class="nav-right">
+      <a href="refunds.html" class="back">Refunds</a>
+      <a href="index.html" class="back">← Back to home</a>
+    </div>
   </nav>
 </header>
 
@@ -104,7 +108,7 @@
       <li><strong>Twilio</strong> — delivers and receives your text messages, and sends the one-time code that verifies your number at signup</li>
       <li><strong>Supabase</strong> — securely stores your account and message data</li>
       <li><strong>Anthropic</strong> — powers Ozzily's replies and analyzes meal and workout photos you send us (Claude)</li>
-      <li><strong>Paddle</strong> (Paddle.com Market Limited) — our merchant of record; takes payment and handles sales tax. We never see or store your card details</li>
+      <li><strong>Paddle</strong> (Paddle.com Market Limited) — our merchant of record; handles order processing, payments, tax, customer service enquiries about your order, and returns and refunds. We never see or store your card details</li>
     </ul>
     <p>We do not sell or share your SMS opt-in data or personal information with third parties for marketing purposes. Mobile phone numbers and SMS consent are never shared with third parties or affiliates for their marketing or promotional use.</p>
     <p>We don't share your information with advertisers, data brokers, or anyone outside of running the service itself.</p>
@@ -140,10 +144,10 @@
   <section>
     <h2>9. Your rights and choices</h2>
     <ul>
-      <li><strong>Stop messages:</strong> text "STOP" any time</li>
+      <li><strong>Stop messages:</strong> text "STOP" any time. This stops the texts only — it does not cancel your subscription or stop billing.</li>
       <li><strong>Delete your data:</strong> text "delete my data" to Ozzily, or email us (below)</li>
       <li><strong>Access your data:</strong> text "manage" or email us to request a copy</li>
-      <li><strong>Cancel your subscription:</strong> text "cancel" any time</li>
+      <li><strong>Cancel your subscription:</strong> email <a href="mailto:hello@ozzily.com">hello@ozzily.com</a> — see our <a href="refunds.html">Refund &amp; Cancellation Policy</a></li>
     </ul>
   </section>
 
@@ -168,6 +172,7 @@
     <a href="index.html" class="foot-logo"><span class="logo-badge" style="width:22px;height:22px;"></span>Ozzily</a>
     <div class="foot-links">
       <a href="index.html">Home</a>
+      <a href="refunds.html">Refunds</a>
       <a href="terms.html">Terms of Service</a>
       <a href="index.html#faq">FAQ</a>
     </div>

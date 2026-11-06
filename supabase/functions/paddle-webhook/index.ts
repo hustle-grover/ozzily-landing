@@ -162,8 +162,121 @@ function firstPriceId(data: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * The decline reason for a failed payment, from `data.payments[].error_code`.
+ *
+ * Paddle sorts `payments` newest-first, so the most recent attempt comes first. This
+ * takes the first entry that actually carries a code rather than strictly payments[0],
+ * because a later attempt can sit in `action_required` with a null error_code while the
+ * real decline reason is on the attempt behind it. A null here is an honest "Paddle did
+ * not tell us", which is why it is not coerced to a string like "unknown".
+ */
+function failureReason(data: Record<string, unknown>): string | null {
+  const payments = data?.payments;
+  if (!Array.isArray(payments)) return null;
+  for (const attempt of payments as Record<string, unknown>[]) {
+    const code = attempt?.error_code;
+    if (typeof code === "string" && code.trim() !== "") return code.trim();
+  }
+  return null;
+}
+
+/**
+ * ONE STRUCTURED LINE PER REQUEST, the same shape on every path.
+ *
+ * Field-by-field on purpose. The previous version logged the RPC's whole `result`
+ * document on three of the four paths, so every event put its entire return value
+ * into the log. Nothing emitted here is a body and nothing is a secret: the ids are
+ * Paddle's own object ids, the reasons are strings this codebase wrote, and the raw
+ * request, the signature header, the payload and the service-role key never reach a
+ * log line at all.
+ *
+ * `outcome` is the single field to alert on. `skipped_reason` and
+ * `payment_skipped_reason` are never merged: the first is about the SUBSCRIPTION
+ * status, the second about whether a payments row was written, and a correctly
+ * ignored refund populates only the second.
+ */
+type Outcome =
+  | "method_not_allowed"
+  | "unauthorized"
+  | "unparseable_body"
+  | "rpc_error"
+  | "live_event_refused"
+  | "refused"
+  | "applied";
+
+interface RpcFields {
+  ok: boolean | null;
+  user_id: string | null;
+  payment_recorded: boolean | null;
+  status_change_applied: boolean | null;
+  subscription_status: string | null;
+  skipped_reason: string | null;
+  payment_skipped_reason: string | null;
+}
+
+/**
+ * The scalar fields we report, pulled out of apply_payment_event's return document.
+ *
+ * Every field stays null when absent or the wrong type, and an unparseable result
+ * leaves all of them null -- which the live-refusal check below treats as a failure,
+ * because an unreadable answer is not a yes.
+ */
+function rpcFields(result: string): RpcFields {
+  const out: RpcFields = {
+    ok: null,
+    user_id: null,
+    payment_recorded: null,
+    status_change_applied: null,
+    subscription_status: null,
+    skipped_reason: null,
+    payment_skipped_reason: null,
+  };
+  let p: Record<string, unknown>;
+  try {
+    p = JSON.parse(result) as Record<string, unknown>;
+  } catch {
+    return out;
+  }
+  if (typeof p?.ok === "boolean") out.ok = p.ok;
+  if (typeof p?.user_id === "string") out.user_id = p.user_id;
+  if (typeof p?.payment_recorded === "boolean") out.payment_recorded = p.payment_recorded;
+  if (typeof p?.status_change_applied === "boolean") {
+    out.status_change_applied = p.status_change_applied;
+  }
+  if (typeof p?.subscription_status === "string") out.subscription_status = p.subscription_status;
+  if (typeof p?.skipped_reason === "string") out.skipped_reason = p.skipped_reason;
+  if (typeof p?.payment_skipped_reason === "string") {
+    out.payment_skipped_reason = p.payment_skipped_reason;
+  }
+  return out;
+}
+
+function logRequest(
+  level: "log" | "warn" | "error",
+  fields: {
+    outcome: Outcome;
+    http: number;
+    event_id?: string | null;
+    event_type?: string | null;
+    environment?: string | null;
+    rpc_status?: number | null;
+    reason?: string | null;
+  } & Partial<RpcFields>,
+): void {
+  const line: Record<string, unknown> = { at: "paddle-webhook" };
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) line[k] = v;
+  }
+  const s = JSON.stringify(line);
+  if (level === "error") console.error(s);
+  else if (level === "warn") console.warn(s);
+  else console.log(s);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
+    logRequest("warn", { outcome: "method_not_allowed", http: 405 });
     return new Response("method not allowed", { status: 405 });
   }
 
@@ -174,7 +287,9 @@ Deno.serve(async (req: Request) => {
   const verdict = await verify(raw, sigHeader);
   if (!verdict.ok) {
     // 401 and no detail to the caller; the reason goes to the function log only.
-    console.warn(JSON.stringify({ at: "paddle-webhook", rejected: verdict.why, bytes: raw.length }));
+    logRequest("warn", {
+      outcome: "unauthorized", http: 401, reason: verdict.why,
+    });
     return new Response("unauthorized", { status: 401 });
   }
 
@@ -182,7 +297,10 @@ Deno.serve(async (req: Request) => {
   try {
     ev = JSON.parse(raw);
   } catch {
-    console.warn(JSON.stringify({ at: "paddle-webhook", error: "verified but unparseable body" }));
+    logRequest("warn", {
+      outcome: "unparseable_body", http: 200,
+      reason: "signature valid but body is not JSON",
+    });
     // Signature was valid, so this is Paddle's payload. Accept it so Paddle stops
     // retrying something we will never be able to parse, and record it.
     return new Response(JSON.stringify({ ok: false, error: "unparseable body" }), {
@@ -194,16 +312,32 @@ Deno.serve(async (req: Request) => {
   const data = (ev.data ?? {}) as Record<string, unknown>;
   const custom = (data.custom_data ?? {}) as Record<string, unknown>;
   const details = (data.details ?? {}) as Record<string, unknown>;
-  const totals = (details.totals ?? {}) as Record<string, unknown>;
   const eventType = String(ev.event_type ?? "");
   const isTransaction = eventType.startsWith("transaction.");
+  const isAdjustment = eventType.startsWith("adjustment.");
 
-  // data.id is the transaction id on transaction.* events and the subscription id on
-  // subscription.* events, so they must not be read from the same place.
-  const subscriptionId = isTransaction
+  // An adjustment carries its totals at `data.totals`; a transaction nests them under
+  // `data.details.totals`. Reading the transaction path for an adjustment yields an
+  // empty object, so every amount arrives null and the refund is recorded as 0 -- a
+  // row that looks successfully written and states something false.
+  const totals = (isAdjustment ? data.totals ?? {} : details.totals ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  // `data.id` means a different thing per event family, so it must not be read from
+  // the same place: the transaction id on transaction.*, the subscription id on
+  // subscription.*, and the ADJUSTMENT id on adjustment.* -- where the transaction and
+  // subscription it refers to are separate fields. Passing an adjustment id as the
+  // subscription id (the old behaviour) resolves no user, so the refund was lost.
+  const subscriptionId = isTransaction || isAdjustment
     ? (data.subscription_id as string | null) ?? null
     : (data.id as string | null) ?? null;
-  const transactionId = isTransaction ? (data.id as string | null) ?? null : null;
+  const transactionId = isTransaction
+    ? (data.id as string | null) ?? null
+    : isAdjustment
+    ? (data.transaction_id as string | null) ?? null
+    : null;
 
   const body = {
     p_event_id: String(ev.event_id ?? ""),
@@ -213,17 +347,26 @@ Deno.serve(async (req: Request) => {
     p_provider_customer_id: (data.customer_id as string | null) ?? null,
     p_provider_subscription_id: subscriptionId,
     p_provider_transaction_id: transactionId,
-    p_amount_cents: (totals.grand_total as string | null) ?? null,
+    // The gross field is named differently per family: a transaction's totals carry
+    // `grand_total`, an adjustment's carry `total`. There is no `grand_total` on an
+    // adjustment at all, so reading only that one leaves a refund recorded as 0 --
+    // the same silent-zero failure as reading the wrong totals object.
+    p_amount_cents:
+      ((isAdjustment ? totals.total : totals.grand_total) as string | null) ?? null,
     p_currency: (data.currency_code as string | null) ?? null,
     p_plan: planForPriceId(firstPriceId(data)),
-    p_failure_reason: null,
-    p_paddle_status: (data.status as string | null) ?? null,
+    p_failure_reason: failureReason(data),
+    // `data.status` on an adjustment is the ADJUSTMENT's status (pending_approval,
+    // approved, rejected, reversed), not a subscription status. Feeding it to the
+    // subscription-status mapper would be handing that mapper a value it must never
+    // see, so adjustments send null here and carry their own status separately.
+    p_paddle_status: isAdjustment ? null : (data.status as string | null) ?? null,
     p_next_billed_at: (data.next_billed_at as string | null) ?? null,
     // Gross alone cannot answer "what did we actually keep". Paddle is the merchant
     // of record, so `tax` is what Paddle collected and remits, and `earnings` is what
-    // reaches us. Both `fee` and `earnings` are absent until a transaction settles,
-    // so they stay null rather than being coerced to 0 -- a zero fee would be a
-    // false statement, not a missing one.
+    // reaches us. All three in fact arrive at purchase time rather than at settlement
+    // (proven by the first real checkout), but they stay null when absent rather than
+    // being coerced to 0 -- a zero fee would be a false statement, not a missing one.
     p_tax_cents: (totals.tax as string | null) ?? null,
     p_fee_cents: (totals.fee as string | null) ?? null,
     p_earnings_cents: (totals.earnings as string | null) ?? null,
@@ -231,6 +374,14 @@ Deno.serve(async (req: Request) => {
     // fails closed on any other value and refuses to apply a sandbox event to a user
     // outside `payment_test_users`.
     p_environment: verdict.env,
+    // The RPC decides whether an adjustment is money that moved, and it needs the
+    // adjustment's own status and action to do it -- the event name cannot say, since
+    // adjustment.created fires while a refund is still pending_approval. The id is a
+    // second idempotency key: created and updated for one adjustment carry different
+    // event ids, so provider_event_id alone cannot stop a refund being counted twice.
+    p_adjustment_id: isAdjustment ? (data.id as string | null) ?? null : null,
+    p_adjustment_action: isAdjustment ? (data.action as string | null) ?? null : null,
+    p_adjustment_status: isAdjustment ? (data.status as string | null) ?? null : null,
   };
 
   const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/apply_payment_event`, {
@@ -246,10 +397,11 @@ Deno.serve(async (req: Request) => {
   const result = await rpc.text();
 
   if (!rpc.ok) {
-    console.error(JSON.stringify({
-      at: "paddle-webhook", event_id: body.p_event_id, event_type: eventType,
-      rpc_status: rpc.status, rpc_body: result,
-    }));
+    logRequest("error", {
+      outcome: "rpc_error", http: 500,
+      event_id: body.p_event_id, event_type: eventType, environment: verdict.env,
+      rpc_status: rpc.status,
+    });
     // Non-2xx tells Paddle to retry, which is what we want for a transient DB fault.
     return new Response("rpc failed", { status: 500 });
   }
@@ -268,29 +420,26 @@ Deno.serve(async (req: Request) => {
   //
   // `rpcOk === null` means the result could not be parsed, which is counted as a
   // failure for live rather than as success -- an unreadable answer is not a yes.
-  let rpcOk: boolean | null = null;
-  try {
-    const parsed = JSON.parse(result) as { ok?: unknown };
-    if (typeof parsed?.ok === "boolean") rpcOk = parsed.ok;
-  } catch {
-    rpcOk = null;
-  }
+  const fields = rpcFields(result);
+  const rpcOk = fields.ok;
 
   if (verdict.env === "live" && rpcOk !== true) {
-    console.error(JSON.stringify({
-      at: "paddle-webhook", event_id: body.p_event_id, event_type: eventType,
-      environment: verdict.env, live_event_refused: true, rpc_ok: rpcOk, result,
-    }));
+    logRequest("error", {
+      outcome: "live_event_refused", http: 500,
+      event_id: body.p_event_id, event_type: eventType, environment: verdict.env,
+      ...fields,
+    });
     return new Response(result, {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  console.log(JSON.stringify({
-    at: "paddle-webhook", event_id: body.p_event_id, event_type: eventType,
-    environment: verdict.env, rpc_ok: rpcOk, result,
-  }));
+  logRequest(rpcOk === true ? "log" : "warn", {
+    outcome: rpcOk === true ? "applied" : "refused", http: 200,
+    event_id: body.p_event_id, event_type: eventType, environment: verdict.env,
+    ...fields,
+  });
 
   return new Response(result, {
     status: 200,

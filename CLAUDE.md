@@ -690,12 +690,17 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
   success path -- purchase, activation, cancellation -- so both remain untested, which by
   this project's own rule ("test the refusal path and the success path") means untested
   in the direction that matters. `transaction.payment_failed` is also the only path that
-  writes `failure_reason`, and the webhook currently hardcodes `p_failure_reason: null`,
-  so that column cannot populate as things stand -- a bug visible only by reading the
-  two together. The refund side has a separate known gap recorded further down
-  (`adjustment.created` is unmapped and the adjustment id is mis-passed as the
-  subscription id). Exercise both with Paddle simulations before launch; a dunning
-  failure that silently does nothing is a customer who keeps service without paying.
+  writes `failure_reason`, and the webhook hardcoded `p_failure_reason: null` -- so that
+  column could not populate at all, a bug visible only by reading the function and the
+  webhook together. **Both fixed 2026-11-05:** the reason now comes from
+  `data.payments[].error_code`, taking the first attempt that carries a code rather than
+  strictly `payments[0]`, because a newer attempt can sit in `action_required` with a null
+  code while the real decline reason is on the attempt behind it. A null is left as an
+  honest "Paddle did not tell us" rather than coerced to "unknown". Verified against the
+  live function: a `transaction.payment_failed` wrote `failed` + `insufficient_funds`.
+  **Still true: neither failure event has been exercised by a REAL Paddle event** -- only
+  by direct RPC calls and signed synthetic requests. A dunning failure that silently does
+  nothing is a customer who keeps service without paying.
 
 - **A pricing claim has to be audited on every page that shows a price, not the two you were
   asked about.** The tax-inclusive copy was scoped to `index.html` and `terms.html`, but
@@ -903,15 +908,89 @@ a credential by name is fine; its value is not.
   verified no-op. Worse, `paddle-webhook` computes `isTransaction` from the `transaction.`
   prefix, so on any `adjustment.*` event `data.id` -- the adjustment id -- is passed as
   `p_provider_subscription_id`. It fails safe (no match means `ok:false`, never a
-  mis-attribution) but the refund is lost. Confirm the live destination subscribes to
-  `adjustment.*` at all, then fix by treating `adjustment.*` like transactions: read the
-  payload's own `transaction_id`/`subscription_id` and map `adjustment.created` as well.
+  mis-attribution) but the refund is lost. **FIXED 2026-11-05** (migration
+  `20261105073039`, webhook v12) -- and the fix found three more bugs in the same path,
+  none of which the original diagnosis predicted:
+  - **An adjustment's totals live at `data.totals`, not `data.details.totals`**, and its
+    gross field is **`total`**, not `grand_total` -- there is no `grand_total` on an
+    adjustment at all. Either mistake alone records the refund as **0**: a row that looks
+    successfully written and states something false. My first attempt at the fix still
+    read `grand_total` and was caught only by a test asserting the amount, not by review.
+  - **An adjustment payload carries no `custom_data`**, so `custom_data.user_id` -- the
+    primary resolution path -- is simply absent on every refund. Resolution falls entirely
+    to `provider_subscription_id`/`provider_customer_id` on the `users` row, which means
+    the purchase webhook writing those ids back is **load-bearing for refunds**. Clearing
+    them on a test user makes a subsequent refund resolve nobody.
+  - **Mapping must key on the adjustment's own `status` and `action`, never the event
+    name.** `adjustment.created` fires while a refund is still `pending_approval`, and that
+    status can go on to `rejected`, so mapping the event name (the obvious reading of this
+    gap) records refunds that never happened -- the same class of error as a status written
+    by the step that *starts* an action. Only `approved` writes a row. The three `*_reverse`
+    actions move money back **towards** us and are declined explicitly, since recording one
+    as a refund would double-count a loss.
+  Also: `adjustment.created` and `adjustment.updated` for one adjustment carry **different
+  event ids**, so `provider_event_id` cannot see a refund is already recorded -- hence
+  `payments.provider_adjustment_id` UNIQUE as a second idempotency key, with the insert
+  wrapped so a concurrent duplicate hits the constraint instead of double-counting. And
+  `chargeback` is now its own `payments.status` value rather than being collapsed into
+  `refunded`, which would misreport a dispute as a voluntary refund.
 - **Nothing configured in Paddle sandbox carries over to live.** The live account is a separate
   system, so every sandbox setting has to be made again there: both prices **tax inclusive**,
   `ozzily.com/pay` as the **default payment link**, **no trial** on either price, the
   notification destination (with its own signing secret, and the same event list), and the
   event subscriptions. A setting that exists only in sandbox reads as "already done" in the
   dashboard you are not looking at.
+  **The event list is 12, not 10, as of 2026-11-06.** The sandbox destination was not
+  subscribed to `adjustment.created` or `adjustment.updated` at all, so no refund event
+  could ever have arrived however correct the receiver was -- the subscription list is a
+  third independent gate after the signing secret and the code, and a refund fix is
+  untestable without it. Both were added to sandbox on 2026-11-06 and **must be added to
+  the live destination too**; a receiver that handles an event it is not sent is
+  indistinguishable from a broken one.
+- **A refund row REPEATS the original's tax, fee and earnings, and the sign lives in
+  `status`, not in the number. Summing any money column without the sign double-counts.**
+  Paddle's adjustment carries its own `totals`, and for a full refund those mirror the
+  original transaction -- so the refunded row stores tax 442, fee 195, earnings 2263
+  exactly as the purchase did. They are the amounts being *reversed*, stored positive.
+  Measured on the one purchase-and-full-refund pair, which nets to zero:
+  `sum(amount_cents)` = **5800** and `sum(earnings_cents)` = **4526**, both pure fiction.
+  Every revenue query must sign by status and exclude the non-movements:
+  ```sql
+  sum(case when status = 'succeeded'                     then  earnings_cents
+           when status in ('refunded','chargeback')      then -earnings_cents
+           else 0 end)  -- 'failed' and 'pending' moved no money; never add them
+  ```
+  Verified: that form returns 0 for gross, earnings and fee on the same two rows. Pair a
+  refund to its purchase on `provider_transaction_id`, which is identical on both;
+  `provider_adjustment_id` is non-null only on the refund. A partial refund works the
+  same way, because its adjustment totals are the partial amounts.
+  **Open question, do not assume either way: whether Paddle actually returns its 195c
+  fee on a refund.** The adjustment *reports* a fee, but reporting it is not the same as
+  crediting it. If Paddle keeps the fee, netting it to zero overstates recovery and the
+  true cost of a refunded sale is the fee. Settle it against a live payout statement,
+  not against this column.
+- **A live refund for a user whose provider ids are null returns 500 and retries
+  forever-until-exhausted, and retrying can never fix it.** An adjustment carries no
+  `custom_data`, so `user_id` is absent and resolution falls to
+  `provider_subscription_id` then `provider_customer_id` on the `users` row. If both are
+  null, `apply_payment_event` returns `ok:false`, the webhook logs
+  `outcome: live_event_refused` and answers 500 so Paddle retries and the event lands in
+  the destination's failed-event list rather than vanishing. That is the design working:
+  it makes the event visible. But nothing will repair itself, because the missing ids are
+  on our row, so a human must act:
+  1. Find the user from the original purchase: `select user_id from public.payments where
+     provider_transaction_id = '<the adjustment's transaction_id>'`. That row resolved at
+     purchase time via `custom_data.user_id`, so it is the reliable link.
+  2. Backfill `users.provider_subscription_id` / `provider_customer_id` from the Paddle
+     objects.
+  3. Replay the event from the Paddle destination's failed-event list. It now resolves.
+  4. If there is no `payments` row either, the purchase was never recorded: match the
+     Paddle customer to `users.phone` by hand in the dashboard, backfill, then replay.
+  **The durable fix is a fourth resolution fallback** -- resolve by
+  `payments.provider_transaction_id` when the users row has no ids -- which would make any
+  refund resolvable whenever its purchase was recorded. Not built; recommended before live.
+  **This makes the purchase webhook writing those ids back load-bearing for refunds**, so
+  a purchase that fails to write them silently arms this failure for every later refund.
 - **Do not create a live API key until cancel-by-text is built.** The site promises cancel by
   text, which needs write access to subscriptions; until that function exists the key grants
   more than anything uses, and a read-only need does not justify it.

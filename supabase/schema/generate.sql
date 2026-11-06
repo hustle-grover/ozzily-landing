@@ -104,11 +104,18 @@ f as (
     E'-- existing ACL, so revoking from anon/authenticated alone is NOT enough -- PUBLIC\n',
     E'-- is the grant that matters. Verify with the audit query in README.md.\n\n',
     (select s from grants), E'\n') as c
-)
+),
 -- The regexp_replace is what keeps the live URL out of this public repository,
 -- and applying it here is what makes the md5 match the committed
 -- 02_functions.sql. No secret is needed to run this.
-with red as (
+--
+-- `red` is part of the SAME CTE list deliberately. It was once a second
+-- `with` clause after the first, which Postgres rejects with 42601
+-- ("syntax error at or near with") -- so this query could not run at all,
+-- and the snapshot it is supposed to produce had to be made by hand. A
+-- generator that does not run is worse than no generator, because the file
+-- it guards still looks generated.
+red as (
   select regexp_replace(c, 'https://hook\.[^'']*', '<MAKE_CHECKIN_HOOK_URL>', 'g') as c
     from f
 )

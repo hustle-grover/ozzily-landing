@@ -207,7 +207,7 @@ end;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text, p_paddle_status text DEFAULT NULL::text, p_next_billed_at text DEFAULT NULL::text, p_tax_cents text DEFAULT NULL::text, p_fee_cents text DEFAULT NULL::text, p_earnings_cents text DEFAULT NULL::text, p_environment text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text DEFAULT NULL::text, p_user_id text DEFAULT NULL::text, p_provider_customer_id text DEFAULT NULL::text, p_provider_subscription_id text DEFAULT NULL::text, p_provider_transaction_id text DEFAULT NULL::text, p_amount_cents text DEFAULT NULL::text, p_currency text DEFAULT NULL::text, p_plan text DEFAULT NULL::text, p_failure_reason text DEFAULT NULL::text, p_paddle_status text DEFAULT NULL::text, p_next_billed_at text DEFAULT NULL::text, p_tax_cents text DEFAULT NULL::text, p_fee_cents text DEFAULT NULL::text, p_earnings_cents text DEFAULT NULL::text, p_environment text DEFAULT NULL::text, p_adjustment_id text DEFAULT NULL::text, p_adjustment_action text DEFAULT NULL::text, p_adjustment_status text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -235,6 +235,10 @@ declare
   v_skipped    text;
   v_actual     text;
   v_trial_end  timestamptz;
+  v_adj_id      text := nullif(btrim(coalesce(p_adjustment_id,'')),'');
+  v_adj_action  text := lower(btrim(coalesce(p_adjustment_action,'')));
+  v_adj_status  text := lower(btrim(coalesce(p_adjustment_status,'')));
+  v_pay_skipped text;
 begin
   if v_eid is null then
     return jsonb_build_object('ok', false, 'error', 'missing event id');
@@ -343,28 +347,61 @@ begin
     end if;
   end if;
 
-  v_pay_status := case
-    when v_event = 'transaction.completed'      then 'succeeded'
-    when v_event = 'transaction.payment_failed' then 'failed'
-    when v_event = 'adjustment.updated'         then 'refunded'
-    else null
-  end;
+  -- ADJUSTMENTS MAP ON THE ADJUSTMENT'S OWN STATUS AND ACTION, NEVER ON THE EVENT
+  -- NAME. `adjustment.created` fires while a refund is still `pending_approval`,
+  -- and that status can go on to `rejected`, so treating the event name as proof
+  -- would record refunds that never happened -- the same class of error as a status
+  -- written by the step that STARTS an action instead of the step that confirms it.
+  -- Only `approved` is money that actually moved.
+  --
+  -- The `*_reverse` actions (chargeback_reverse, chargeback_warning_reverse,
+  -- credit_reverse) move money back TOWARDS us. Recording one as a refund would
+  -- double-count a loss, so they are deliberately not recorded and say why.
+  if v_event like 'adjustment.%' then
+    if v_adj_status <> 'approved' then
+      v_pay_skipped := format('adjustment status is %s, not approved; no payment row written',
+                              coalesce(nullif(v_adj_status,''), '(none)'));
+    elsif v_adj_action = 'refund' then
+      v_pay_status := 'refunded';
+    elsif v_adj_action = 'chargeback' then
+      v_pay_status := 'chargeback';
+    else
+      v_pay_skipped := format('adjustment action %s is approved but is not money leaving us; no payment row written',
+                              coalesce(nullif(v_adj_action,''), '(none)'));
+    end if;
+  else
+    v_pay_status := case
+      when v_event = 'transaction.completed'      then 'succeeded'
+      when v_event = 'transaction.payment_failed' then 'failed'
+      else null
+    end;
+  end if;
 
   if v_pay_status is not null then
-    insert into public.payments
-      (user_id, provider, provider_event_id, provider_transaction_id,
-       amount_cents, currency, status, plan, failure_reason,
-       tax_cents, fee_cents, earnings_cents, environment)
-    values
-      (v_uid, 'paddle', v_eid, nullif(btrim(coalesce(p_provider_transaction_id,'')),''),
-       coalesce(v_amount, 0), coalesce(nullif(lower(btrim(coalesce(p_currency,''))),''), 'usd'),
-       v_pay_status,
-       case when v_plan in ('monthly','annual') then v_plan else null end,
-       nullif(btrim(coalesce(p_failure_reason,'')),''),
-       v_tax, v_fee, v_earn, v_env)
-    on conflict (provider_event_id) do nothing;
+    begin
+      insert into public.payments
+        (user_id, provider, provider_event_id, provider_transaction_id,
+         provider_adjustment_id,
+         amount_cents, currency, status, plan, failure_reason,
+         tax_cents, fee_cents, earnings_cents, environment)
+      values
+        (v_uid, 'paddle', v_eid, nullif(btrim(coalesce(p_provider_transaction_id,'')),''),
+         v_adj_id,
+         coalesce(v_amount, 0), coalesce(nullif(lower(btrim(coalesce(p_currency,''))),''), 'usd'),
+         v_pay_status,
+         case when v_plan in ('monthly','annual') then v_plan else null end,
+         nullif(btrim(coalesce(p_failure_reason,'')),''),
+         v_tax, v_fee, v_earn, v_env)
+      on conflict (provider_event_id) do nothing;
 
-    v_inserted := found;
+      v_inserted := found;
+    exception when unique_violation then
+      -- provider_adjustment_id is UNIQUE, so a second approved event for the same
+      -- adjustment -- which carries a DIFFERENT event id, and so is invisible to the
+      -- provider_event_id guard -- lands here instead of double-recording the refund.
+      v_inserted := false;
+      v_pay_skipped := 'this adjustment is already recorded under a different event id';
+    end;
   end if;
 
   update public.users u set
@@ -413,7 +450,8 @@ begin
     'status_source', coalesce(v_source, '(none)'),
     'subscription_status', v_actual,
     'trial_end_set', v_trial_end,
-    'skipped_reason', v_skipped
+    'skipped_reason', v_skipped,
+    'payment_skipped_reason', v_pay_skipped
   );
 end $function$
 ;
@@ -1288,8 +1326,8 @@ revoke all on function public.ai_brain_system_prompt() from public, anon, authen
 grant execute on function public.ai_brain_system_prompt() to service_role;
 revoke all on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) from public, anon, authenticated;
 grant execute on function public.apply_ai_turn(p_user_id text, p_inbound_body text, p_twilio_sid text, p_media_url text, p_media_content_type text, p_detected_protein text, p_reply text, p_message_kind text, p_medication text, p_protein_goal text, p_workout_days text, p_wake_time text, p_onboarding_step text, p_intensity_level text, p_first_name text, p_weight_kg text) to service_role;
-revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text, p_environment text) from public, anon, authenticated;
-grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text, p_environment text) to service_role;
+revoke all on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text, p_environment text, p_adjustment_id text, p_adjustment_action text, p_adjustment_status text) from public, anon, authenticated;
+grant execute on function public.apply_payment_event(p_event_id text, p_event_type text, p_occurred_at text, p_user_id text, p_provider_customer_id text, p_provider_subscription_id text, p_provider_transaction_id text, p_amount_cents text, p_currency text, p_plan text, p_failure_reason text, p_paddle_status text, p_next_billed_at text, p_tax_cents text, p_fee_cents text, p_earnings_cents text, p_environment text, p_adjustment_id text, p_adjustment_action text, p_adjustment_status text) to service_role;
 revoke all on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) from public, anon, authenticated;
 grant execute on function public.build_ai_request(p_phone text, p_body text, p_media_url text, p_media_type text, p_media_b64 text) to service_role;
 revoke all on function public.checkin_delivery_health() from public, anon, authenticated;

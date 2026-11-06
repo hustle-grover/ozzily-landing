@@ -61,7 +61,8 @@ create table public.payments (
   tax_cents                integer,
   fee_cents                integer,
   earnings_cents           integer,
-  environment              text not null default 'live'::text
+  environment              text not null default 'live'::text,
+  provider_adjustment_id   text
 );
 
 create table public.scheduled_messages (
@@ -153,13 +154,14 @@ alter table public.payment_events_refused add constraint payment_events_refused_
 alter table public.payment_events_refused add constraint payment_events_refused_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 alter table public.payment_test_users add constraint payment_test_users_pkey PRIMARY KEY (user_id);
 alter table public.payment_test_users add constraint payment_test_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+alter table public.payments add constraint payments_provider_adjustment_id_key UNIQUE (provider_adjustment_id);
 alter table public.payments add constraint payments_provider_event_id_key UNIQUE (provider_event_id);
 alter table public.payments add constraint payments_pkey PRIMARY KEY (id);
 alter table public.payments add constraint payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 alter table public.payments add constraint payments_environment_check CHECK ((environment = ANY (ARRAY['live'::text, 'sandbox'::text])));
 alter table public.payments add constraint payments_plan_check CHECK ((plan = ANY (ARRAY['monthly'::text, 'annual'::text])));
 alter table public.payments add constraint payments_provider_check CHECK ((provider = ANY (ARRAY['paddle'::text, 'stripe'::text, 'razorpay'::text, 'manual'::text])));
-alter table public.payments add constraint payments_status_check CHECK ((status = ANY (ARRAY['succeeded'::text, 'failed'::text, 'refunded'::text, 'pending'::text])));
+alter table public.payments add constraint payments_status_check CHECK ((status = ANY (ARRAY['succeeded'::text, 'failed'::text, 'refunded'::text, 'chargeback'::text, 'pending'::text])));
 alter table public.scheduled_messages add constraint scheduled_messages_pkey PRIMARY KEY (id);
 alter table public.scheduled_messages add constraint scheduled_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 alter table public.scheduled_messages add constraint scheduled_messages_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text, 'cancelled'::text])));

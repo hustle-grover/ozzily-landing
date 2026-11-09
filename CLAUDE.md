@@ -384,6 +384,21 @@ Supabase `service_role` key, Twilio SID/auth token, and Paddle keys live in a lo
      and (p.proacl is null or has_function_privilege('anon', p.oid, 'EXECUTE'));
   ```
   An empty result is the only acceptable answer. Note `get_advisors` did **not** flag this.
+- **`create or replace function` preserves nothing about the body's QUOTING, and how you
+  re-create it decides the size of the snapshot diff.** Changing one line of
+  `ai_brain_system_prompt()` on 2026-11-09, the body was first rebuilt with dollar-quoting
+  (`as $function$ select $tag$...$tag$::text $function$`), which is attractive because it
+  removes the need to double every apostrophe in 9.6KB of prose. It worked and the prompt text
+  came out byte-identical -- but `pg_get_functiondef()` then returns the body in that *new*
+  shape, so the regenerated snapshot differed from the committed one across the **whole
+  ninety-line function** instead of the one line that actually changed. Rebuilding with
+  `quote_literal(v_text)` reproduces the original `as $function$ select '...'::text $function$`
+  form exactly and the diff collapses to a single line. **Rule: when rewriting a function whose
+  definition is committed, reproduce the original quoting style, not merely the original
+  semantics.** A ninety-line diff of a file nobody can read is a review nobody performs, and
+  that is precisely where an unintended change hides. Check before writing the file by
+  comparing the element's `md5(pg_get_functiondef(oid) || E';\n')` against the database, which
+  is also what catches a transcription slip of one character.
 - **The schema snapshot lives in `supabase/schema/` — regenerate it after any DB change.**
   Tables, all 24 function bodies (including the system prompt), triggers and the EXECUTE
   grants are committed there, so a prompt or function change is now reviewable in a diff.

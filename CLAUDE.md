@@ -1009,6 +1009,38 @@ a credential by name is fine; its value is not.
   shipped on 2026-11-02. **Mirroring is a two-way obligation**: this file was stale on A2P, the
   vault is stale on the schema. Reconcile both whenever either changes.
 
+- **"Text cancel" pointed customers at a channel that silently swallowed the request.**
+  `CANCEL` is one of the registered A2P STOP keywords -- the set is `STOP, STOPALL,
+  UNSUBSCRIBE, CANCEL, END, QUIT` in `docs/a2p-campaign-registration.md` -- so Twilio's
+  opt-out handler intercepts it *before* the inbound webhook fires. The AI Brain never sees
+  the message, nobody is notified, and the subscription keeps billing. So the old copy did
+  not merely name the wrong channel: it named one that absorbs the request while the card
+  keeps being charged, which is strictly worse than naming no channel at all. It was live on
+  four pages (`index.html`, `terms.html`, `privacy.html` and `pay.html` -- the last being the
+  checkout page itself) and was fixed on 2026-11-09, when every page was changed to name
+  `hello@ozzily.com`. **Rule: before instructing a customer to text a keyword, check it is not
+  a carrier opt-out keyword.** The overlap is invisible in testing because the message is
+  swallowed upstream of everything we instrument -- there is no error, no row and no log.
+  Note the registered sentence "Reply STOP to cancel, HELP for help" is still correct and must
+  not be edited: in A2P convention "cancel" means cancel the *messages*, which is what STOP
+  does. The falsehood was only ever the implication that it stops the money.
+- **To test a prompt change without texting anyone, build a throwaway Make scenario with no
+  Twilio module.** The Anthropic key is on no developer machine and is **not** a Supabase
+  secret either -- it lives in Make's HTTP connection (auth id 222879) -- so a Supabase Edge
+  Function probe dies with `ANTHROPIC_API_KEY is not set`, and the only path to the model runs
+  through Make, where both production scenarios end in `twilio:SendSMS`. What works: webhook
+  -> `supabase:makeAnApiCall` on `/rest/v1/rpc/ai_brain_system_prompt` -> `http` module reusing
+  connection 222879 -> write the reply into a temp table, because the Make API cannot show
+  per-module I/O. Teach the hook first (`hooks_learn_start`, POST one representative payload,
+  `hooks_learn_stop`) or every `{{1.field}}` resolves empty. Delete the scenario, the hook and
+  the table afterwards. Used on 2026-11-09 to confirm the billing line sends customers to
+  `hello@ozzily.com` without promising a refund. Two traps worth knowing: the **Supabase MCP
+  server cannot delete an Edge Function, only replace it**, so a probe deployed there must be
+  tombstoned and removed by hand (`supabase functions delete <name>`); and a probe needs its
+  own authentication, which can be a single-use random token planted in a temp table and read
+  by the function with its own service key -- that way no long-lived credential is ever handled
+  outside the project.
+
 ## Support runbook: refunds and cancellations (2026-11-09)
 
 `refunds.html` promises a full refund on request within 30 days of a charge, and names email as

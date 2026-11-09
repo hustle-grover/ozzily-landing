@@ -1042,3 +1042,26 @@ Notes that decide whether any of this gets recorded:
   recorded above under the live-refund entry -- resolve the user by hand and set the ids before
   re-sending the event from Paddle.
 - **Do not reach for a Paddle API key to do any of this.** All three steps are dashboard actions.
+
+**Cancel by email is the launch path, deliberately, and it is a manual one.** Every page now
+names `hello@ozzily.com`; nothing self-serve exists. That is an accepted launch cost, not an
+oversight -- it is a handful of emails at this volume, and it beats shipping an unverified
+automated path. The scaling answer is the **Paddle customer portal**, a hosted page where the
+customer cancels or updates their card themselves. It is **to be planned, not built**, and it
+is blocked on one thing that is not engineering: **legal advice on auto-renewal rules**. US
+state automatic-renewal laws (California's ARL is the strictest) generally require clear
+pre-purchase disclosure of the renewal, and several require an easy online cancellation
+mechanism for a subscription bought online -- which an email-only path arguably is not. Ozzily
+sells `$29/month` and `$249/year` recurring subscriptions to US consumers, so this applies to
+us. Two consequences:
+
+- **Ask the CA/counsel whether email-only cancellation is sufficient for US consumers before
+  launch**, in the same conversation as the GST/FEMA export-of-services question. If it is not,
+  the portal stops being a scaling nicety and becomes a launch blocker.
+- **`terms.html` and `refunds.html` must already say the plan renews automatically until
+  cancelled** -- they do, as of 2026-11-09. Do not let that wording be trimmed for brevity; the
+  disclosure is the part the statutes actually mandate.
+
+Do not build the portal before that advice lands: a self-serve cancel button that bypasses the
+manual runbook also bypasses step 2 above, and a customer who cancels in the portal after a
+refund was issued is a different state from one who was cancelled by hand.

@@ -991,9 +991,13 @@ a credential by name is fine; its value is not.
   refund resolvable whenever its purchase was recorded. Not built; recommended before live.
   **This makes the purchase webhook writing those ids back load-bearing for refunds**, so
   a purchase that fails to write them silently arms this failure for every later refund.
-- **Do not create a live API key until cancel-by-text is built.** The site promises cancel by
-  text, which needs write access to subscriptions; until that function exists the key grants
-  more than anything uses, and a read-only need does not justify it.
+- **A live API key is not needed at all now that cancellation is a manual Paddle action.** The
+  reason this bullet once gave -- "the site promises cancel by text, which needs write access to
+  subscriptions" -- expired on 2026-11-09, when every page was changed to name
+  `hello@ozzily.com` as the cancellation path. Cancelling is done by hand in the Paddle
+  dashboard (see the runbook below), which needs no key. So the key stays uncreated for a
+  stronger reason than before: nothing uses it. Revisit only if self-serve cancellation is
+  automated, and then scope the key to subscription writes.
 - **Make hook 2997965 is reserved for the OUTBOUND "payment received" SMS and is idle by
   design.** Paddle does not point at it and must not: signature verification needs raw bytes
   that Make destroys by parsing. Do not "fix" the idle hook.
@@ -1004,3 +1008,37 @@ a credential by name is fine; its value is not.
   now off, and carries capturing `details.totals.tax/fee/earnings` as an open item although it
   shipped on 2026-11-02. **Mirroring is a two-way obligation**: this file was stale on A2P, the
   vault is stale on the schema. Reconcile both whenever either changes.
+
+## Support runbook: refunds and cancellations (2026-11-09)
+
+`refunds.html` promises a full refund on request within 30 days of a charge, and names email as
+the only route. Nothing is automated, so the whole promise rests on this sequence being followed
+by hand. **Do the steps in this order** -- the order is not cosmetic.
+
+1. **Refund the transaction in Paddle.** Find the transaction and issue a full refund. **On the
+   live account a refund is not immediate: it is created `pending_approval` and Paddle has to
+   approve it.** Sandbox approves instantly, so the live behaviour will look broken by
+   comparison -- it is not. Until it is approved, no money has moved and
+   `apply_payment_event()` deliberately records nothing, because it maps on the adjustment's
+   **status**, not on the event name. A `payments` row with `status = 'refunded'` appears only
+   once Paddle flips the adjustment to `approved`.
+2. **Then cancel the subscription in Paddle, as a separate action.** A refund does **not** cancel
+   the subscription. Refunding and stopping there leaves the customer refunded and still
+   subscribed, so the next billing cycle charges them again -- the exact outcome the policy
+   promises to prevent. `refunds.html` states "A refund also ends your subscription", which is
+   a promise about what *we* do, not a description of what Paddle does on its own.
+3. **Then confirm by email.** Reply on the customer's own thread. There is no email address on
+   the `users` row -- signup collects only a phone number -- so that inbound thread is the only
+   way to reach them in writing. Say what was refunded and that the subscription is cancelled.
+
+Notes that decide whether any of this gets recorded:
+
+- **The refund only lands in `payments` if the live notification destination subscribes to
+  `adjustment.created` AND `adjustment.updated`.** Both were added to sandbox on 2026-11-06 and
+  are part of the 12-event live list. Without them the refund is invisible to our side forever;
+  Paddle will not backfill.
+- **If the user's `provider_customer_id` and `provider_subscription_id` are null**, the webhook
+  cannot attribute the event and returns `ok:false` by design. The recovery procedure is the one
+  recorded above under the live-refund entry -- resolve the user by hand and set the ids before
+  re-sending the event from Paddle.
+- **Do not reach for a Paddle API key to do any of this.** All three steps are dashboard actions.

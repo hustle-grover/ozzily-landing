@@ -17,9 +17,25 @@
 //   PADDLE_WEBHOOK_SECRET_SANDBOX  optional, SANDBOX destination secret, for the cutover only
 //   SUPABASE_URL                   injected by the platform
 //   SUPABASE_SERVICE_ROLE_KEY      injected by the platform
-//   PADDLE_PRICE_ID_MONTHLY        optional, to label a payment's plan
-//   PADDLE_PRICE_ID_ANNUAL         optional
+//   PADDLE_PRICE_ID_MONTHLY        LIVE monthly price id, to label a payment's plan
+//   PADDLE_PRICE_ID_ANNUAL         LIVE annual price id
+//   PADDLE_PRICE_ID_MONTHLY_SANDBOX  SANDBOX monthly price id, for the cutover only
+//   PADDLE_PRICE_ID_ANNUAL_SANDBOX   SANDBOX annual price id, for the cutover only
 //   PADDLE_MAX_SKEW_SECONDS        optional, default 300
+//
+// PRICE IDS ARE PER ENVIRONMENT, AND THE PAIR IS CHOSEN BY THE MATCHED SECRET.
+// A sandbox price id never appears in a live event and vice versa, so one shared pair
+// cannot label both: whichever environment the pair belongs to, the other one's events
+// match nothing, `p_plan` arrives null, and `users.plan` is never labelled even after a
+// successful payment -- monthly and annual subscribers become indistinguishable with
+// nothing erroring anywhere. Selecting the pair by `verdict.env` -- derived from the
+// SIGNATURE, not the payload -- keeps both environments labelled correctly during the
+// overlap. A union match over all four ids was rejected: the environment is already
+// known, and known from the most trustworthy fact in the request, so a union would
+// throw that away and could label a live event from a sandbox price id, hiding the
+// very misconfiguration that produced it.
+//
+// REMOVE THE _SANDBOX PRICE IDS IN THE SAME CLEANUP AS PADDLE_WEBHOOK_SECRET_SANDBOX.
 //
 // TWO SECRETS, AND WHY THE MATCH IS THE ENVIRONMENT TAG
 // Sandbox and live are separate Paddle systems with separate destinations and separate
@@ -57,8 +73,16 @@ const SIGNING_KEYS: ReadonlyArray<{ env: PaddleEnv; secret: string }> = [
 const SECRETS_AMBIGUOUS = SECRET !== "" && SECRET === SECRET_SANDBOX;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const PRICE_MONTHLY = Deno.env.get("PADDLE_PRICE_ID_MONTHLY") ?? "";
-const PRICE_ANNUAL = Deno.env.get("PADDLE_PRICE_ID_ANNUAL") ?? "";
+const PRICE_IDS: Record<PaddleEnv, { monthly: string; annual: string }> = {
+  live: {
+    monthly: Deno.env.get("PADDLE_PRICE_ID_MONTHLY") ?? "",
+    annual: Deno.env.get("PADDLE_PRICE_ID_ANNUAL") ?? "",
+  },
+  sandbox: {
+    monthly: Deno.env.get("PADDLE_PRICE_ID_MONTHLY_SANDBOX") ?? "",
+    annual: Deno.env.get("PADDLE_PRICE_ID_ANNUAL_SANDBOX") ?? "",
+  },
+};
 const MAX_SKEW = Number(Deno.env.get("PADDLE_MAX_SKEW_SECONDS") ?? "300");
 
 const encoder = new TextEncoder();
@@ -143,11 +167,28 @@ async function verify(
   return { ok: true, env: matched };
 }
 
-function planForPriceId(priceId: string | null): string | null {
-  if (!priceId) return null;
-  if (PRICE_MONTHLY && priceId === PRICE_MONTHLY) return "monthly";
-  if (PRICE_ANNUAL && priceId === PRICE_ANNUAL) return "annual";
-  return null;
+/**
+ * Label the plan from the price id, using the price pair for the environment that signed.
+ *
+ * Returns WHY it could not label, not just null. An unlabelled plan is the documented
+ * silent failure here: nothing errors, the payment records fine, and `users.plan` simply
+ * stays null forever. The three causes are indistinguishable from a null -- no price id
+ * in the payload, no ids configured for this environment, or an id that matches neither
+ * -- and only the middle one is a misconfiguration we can fix, so it has to be reported
+ * separately rather than lumped in with the other two.
+ */
+function planForPriceId(
+  priceId: string | null,
+  env: PaddleEnv,
+): { plan: string | null; why: string | null } {
+  const pair = PRICE_IDS[env];
+  if (!priceId) return { plan: null, why: "payload carried no price id" };
+  if (!pair.monthly && !pair.annual) {
+    return { plan: null, why: `no ${env} price ids are configured on this function` };
+  }
+  if (pair.monthly && priceId === pair.monthly) return { plan: "monthly", why: null };
+  if (pair.annual && priceId === pair.annual) return { plan: "annual", why: null };
+  return { plan: null, why: `price id matches neither configured ${env} price` };
 }
 
 /** Pull the first price id out of either a transaction or a subscription payload. */
@@ -213,6 +254,11 @@ interface RpcFields {
   subscription_status: string | null;
   skipped_reason: string | null;
   payment_skipped_reason: string | null;
+  // WHICH resolution path found the user. A fallback that fires silently hides the
+  // breakage it compensates for: `payments.provider_transaction_id` means the users
+  // row is missing its provider ids, which is worth noticing while the purchase is
+  // still recent rather than at the next refund.
+  resolved_by: string | null;
 }
 
 /**
@@ -231,6 +277,7 @@ function rpcFields(result: string): RpcFields {
     subscription_status: null,
     skipped_reason: null,
     payment_skipped_reason: null,
+    resolved_by: null,
   };
   let p: Record<string, unknown>;
   try {
@@ -249,6 +296,7 @@ function rpcFields(result: string): RpcFields {
   if (typeof p?.payment_skipped_reason === "string") {
     out.payment_skipped_reason = p.payment_skipped_reason;
   }
+  if (typeof p?.resolved_by === "string") out.resolved_by = p.resolved_by;
   return out;
 }
 
@@ -262,6 +310,7 @@ function logRequest(
     environment?: string | null;
     rpc_status?: number | null;
     reason?: string | null;
+    plan_lookup?: string | null;
   } & Partial<RpcFields>,
 ): void {
   const line: Record<string, unknown> = { at: "paddle-webhook" };
@@ -339,6 +388,9 @@ Deno.serve(async (req: Request) => {
     ? (data.transaction_id as string | null) ?? null
     : null;
 
+  // Resolved against the price pair for the environment whose secret matched.
+  const planLookup = planForPriceId(firstPriceId(data), verdict.env);
+
   const body = {
     p_event_id: String(ev.event_id ?? ""),
     p_event_type: eventType,
@@ -354,7 +406,7 @@ Deno.serve(async (req: Request) => {
     p_amount_cents:
       ((isAdjustment ? totals.total : totals.grand_total) as string | null) ?? null,
     p_currency: (data.currency_code as string | null) ?? null,
-    p_plan: planForPriceId(firstPriceId(data)),
+    p_plan: planLookup.plan,
     p_failure_reason: failureReason(data),
     // `data.status` on an adjustment is the ADJUSTMENT's status (pending_approval,
     // approved, rejected, reversed), not a subscription status. Feeding it to the
@@ -427,6 +479,7 @@ Deno.serve(async (req: Request) => {
     logRequest("error", {
       outcome: "live_event_refused", http: 500,
       event_id: body.p_event_id, event_type: eventType, environment: verdict.env,
+      plan_lookup: planLookup.why,
       ...fields,
     });
     return new Response(result, {
@@ -438,6 +491,7 @@ Deno.serve(async (req: Request) => {
   logRequest(rpcOk === true ? "log" : "warn", {
     outcome: rpcOk === true ? "applied" : "refused", http: 200,
     event_id: body.p_event_id, event_type: eventType, environment: verdict.env,
+    plan_lookup: planLookup.why,
     ...fields,
   });
 

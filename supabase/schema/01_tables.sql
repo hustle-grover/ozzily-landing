@@ -191,6 +191,7 @@ CREATE INDEX affiliate_clicks_user_idx ON public.affiliate_clicks USING btree (u
 CREATE INDEX messages_kind_idx ON public.messages USING btree (message_kind);
 CREATE INDEX messages_user_created_idx ON public.messages USING btree (user_id, created_at DESC);
 CREATE INDEX payment_events_refused_created_at_idx ON public.payment_events_refused USING btree (created_at DESC);
+CREATE INDEX payments_provider_transaction_idx ON public.payments USING btree (provider_transaction_id) WHERE (provider_transaction_id IS NOT NULL);
 CREATE INDEX payments_user_idx ON public.payments USING btree (user_id, created_at DESC);
 CREATE INDEX scheduled_messages_due_idx ON public.scheduled_messages USING btree (scheduled_for) WHERE (status = 'pending'::text);
 CREATE UNIQUE INDEX uq_scheduled_messages_beat_claim ON public.scheduled_messages USING btree (user_id, message_kind, local_date);

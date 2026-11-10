@@ -107,6 +107,9 @@
       // token, Catalog > Products for the two price ids. Both prices must carry NO
       // trial -- the 3-day trial runs over SMS and the site promises no card up front,
       // so a Paddle trial would collect a card and contradict four published claims.
+      //
+      // The token here begins `live_`. The price ids are `pri_...` like sandbox's, but
+      // they are DIFFERENT ids: nothing configured in sandbox carries over to live.
       token:  "",
       prices: { monthly: "", annual: "" }
     }
@@ -119,6 +122,17 @@
 
   var PADDLE_CLIENT_TOKEN = PADDLE_CONFIG[PADDLE_ENV].token;
   var PRICE_IDS           = PADDLE_CONFIG[PADDLE_ENV].prices;
+
+  // Selecting by hostname stops the sandbox BLOCK loading on the live domain. It cannot
+  // stop the wrong VALUE being pasted into the right block -- and a sandbox token on the
+  // live domain is the exact mistake this page already shipped once: it renders, it
+  // completes, it takes no money, and the customer believes they have paid. Paddle
+  // prefixes client-side tokens by environment, so the value can be checked against the
+  // block it was filled into. A guard against an empty placeholder was never a guard
+  // against the wrong environment; this is.
+  var EXPECTED_TOKEN_PREFIX = { sandbox: "test_", production: "live_" };
+  var tokenPrefixOk =
+    PADDLE_CLIENT_TOKEN.indexOf(EXPECTED_TOKEN_PREFIX[PADDLE_ENV]) === 0;
 
   // -------------------------------------------------------------- elements
   var statusEl  = document.getElementById("status");
@@ -174,7 +188,15 @@
   // case: it looks like it worked, takes no money, and leaves the customer
   // believing they have paid. Selecting config by hostname makes that impossible,
   // and this guard catches the production block not being filled in yet.
-  if (!PADDLE_CLIENT_TOKEN || !PRICE_IDS.monthly || !PRICE_IDS.annual) {
+  if (!PADDLE_CLIENT_TOKEN || !PRICE_IDS.monthly || !PRICE_IDS.annual || !tokenPrefixOk) {
+    // The customer sees one message either way -- a misconfiguration is not their
+    // problem to diagnose -- but the console distinguishes the two causes, because
+    // "not filled in yet" and "filled in with the wrong environment's token" need
+    // completely different fixes.
+    if (PADDLE_CLIENT_TOKEN && !tokenPrefixOk) {
+      console.error("pay.html: the " + PADDLE_ENV + " client token does not start with " +
+                    EXPECTED_TOKEN_PREFIX[PADDLE_ENV] + "; refusing to open checkout.");
+    }
     say("error", "Checkout is not available yet.",
         "Payments are not switched on yet. Please reply to Ozzily and we will sort it out.");
     return;

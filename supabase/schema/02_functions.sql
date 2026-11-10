@@ -239,6 +239,7 @@ declare
   v_adj_action  text := lower(btrim(coalesce(p_adjustment_action,'')));
   v_adj_status  text := lower(btrim(coalesce(p_adjustment_status,'')));
   v_pay_skipped text;
+  v_resolved    text;
 begin
   if v_eid is null then
     return jsonb_build_object('ok', false, 'error', 'missing event id');
@@ -263,15 +264,53 @@ begin
   end if;
 
   v_uid := nullif(btrim(coalesce(p_user_id,'')),'')::uuid;
+  if v_uid is not null then
+    v_resolved := 'custom_data.user_id';
+  end if;
 
   if v_uid is null and nullif(btrim(coalesce(p_provider_subscription_id,'')),'') is not null then
     select id into v_uid from public.users
      where provider_subscription_id = btrim(p_provider_subscription_id) limit 1;
+    if v_uid is not null then
+      v_resolved := 'users.provider_subscription_id';
+    end if;
   end if;
 
   if v_uid is null and nullif(btrim(coalesce(p_provider_customer_id,'')),'') is not null then
     select id into v_uid from public.users
      where provider_customer_id = btrim(p_provider_customer_id) limit 1;
+    if v_uid is not null then
+      v_resolved := 'users.provider_customer_id';
+    end if;
+  end if;
+
+  -- FOURTH FALLBACK: the user the PURCHASE resolved to.
+  --
+  -- An adjustment carries no custom_data, so user_id is absent on every refund. Its
+  -- transaction_id is the original transaction's id, and that purchase row was
+  -- attributed via custom_data.user_id when it was written. So this recovers a refund
+  -- whose users row lost (or never got) its provider ids.
+  --
+  -- `environment` is matched, not ignored. Transaction ids do not collide across
+  -- environments in practice, but attributing a LIVE refund to a user found through a
+  -- SANDBOX payment row would be a cross-environment write, and the column is NOT NULL
+  -- so the match costs nothing. The sandbox allowlist guard below is a second line of
+  -- defence, not a substitute: it only constrains sandbox events.
+  --
+  -- The ordering is deterministic because one transaction can hold both a purchase and a
+  -- refund row: prefer the succeeded purchase, then the oldest. Both carry the same
+  -- user_id in every case this can construct, so the ordering is about being repeatable
+  -- rather than about choosing between different answers.
+  if v_uid is null and nullif(btrim(coalesce(p_provider_transaction_id,'')),'') is not null then
+    select p.user_id into v_uid
+      from public.payments p
+     where p.provider_transaction_id = btrim(p_provider_transaction_id)
+       and p.environment = v_env
+     order by (p.status = 'succeeded') desc, p.created_at asc
+     limit 1;
+    if v_uid is not null then
+      v_resolved := 'payments.provider_transaction_id';
+    end if;
   end if;
 
   if v_uid is null or not exists (select 1 from public.users where id = v_uid) then
@@ -281,7 +320,7 @@ begin
     insert into public.payment_events_refused
       (event_id, event_type, environment, user_id, reason)
     values (v_eid, v_event, v_env, null,
-            'user not resolved from custom_data.user_id, provider_subscription_id or provider_customer_id')
+            'user not resolved from custom_data.user_id, users.provider_subscription_id, users.provider_customer_id or payments.provider_transaction_id')
     on conflict (event_id) do nothing;
 
     raise warning 'apply_payment_event: refused % event % (%): user not resolved',
@@ -451,7 +490,8 @@ begin
     'subscription_status', v_actual,
     'trial_end_set', v_trial_end,
     'skipped_reason', v_skipped,
-    'payment_skipped_reason', v_pay_skipped
+    'payment_skipped_reason', v_pay_skipped,
+    'resolved_by', coalesce(v_resolved, '(none)')
   );
 end $function$
 ;

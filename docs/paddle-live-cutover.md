@@ -119,15 +119,25 @@ from a single secret, so the function accepts either and uses **which one matche
 environment tag — derived from the signature rather than from the payload, which is the
 only trustworthy source for it.
 
-### B3. Deploy the webhook and apply the migration
+### B3. Deploy the webhook
 
-- `supabase/functions/paddle-webhook` → environment-aware price pair, `plan_lookup`
-  reason in the log, `resolved_by` carried through.
-- migration → the fourth resolution fallback via `payments.provider_transaction_id`,
-  plus the supporting index.
+**Already done on 2026-11-10** (commit `78d970b`):
 
-Both are already written, diffed and tested (11/11 synthetic signed-request assertions).
-Then regenerate `supabase/schema/` and verify the md5s against the database.
+- The migration is **applied** — the fourth resolution fallback via
+  `payments.provider_transaction_id`, plus the supporting index. Both its paths were
+  proven against the live function inside a rolled-back `DO` block, and
+  `supabase/schema/` is mirrored (element md5 verified against the database).
+- The webhook's environment-aware price pair, `plan_lookup` and `resolved_by` are
+  **committed but NOT deployed**.
+
+So the only thing left here is the deploy itself, and it is deliberately sequenced after
+B1: deploying before the four price-id secrets are set would leave both environments
+unlabelled, because the plain pair still holds the **sandbox** ids that the currently
+deployed (non-environment-aware) code expects.
+
+**`supabase/functions/paddle-webhook/index.ts` in the repo is therefore ahead of what is
+deployed until this step runs.** Do not read the repo as a description of production in
+the meantime.
 
 ### B4. After A3 — fill the `pay.html` production block and push
 

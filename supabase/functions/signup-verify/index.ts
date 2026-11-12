@@ -175,8 +175,30 @@ async function alertOps(level: string, detail: Record<string, unknown>): Promise
 }
 
 async function turnstileOk(token: string, ip: string | null): Promise<boolean> {
-  if (!TURNSTILE_SECRET) return true; // not configured yet; limits still apply
-  if (!token) return false;
+  // Observability for the wiring itself, because the wiring has two independently
+  // switchable halves and an unconfigured one of each fails OPEN. Without this line
+  // "the page is sending tokens" and "the page is sending nothing" are the same
+  // observation from the server's side, which makes the cutover unverifiable.
+  //
+  // THE TOKEN VALUE IS NEVER LOGGED. It is a single-use credential; its length and
+  // presence answer the question, and the value would only be a liability. The IP is
+  // likewise not logged -- verification_attempts stores only a salted hash of it.
+  const seen = {
+    at: "signup-verify.turnstile",
+    token_present: token.length > 0,
+    token_len: token.length,
+    secret_configured: TURNSTILE_SECRET.length > 0,
+  };
+
+  if (!TURNSTILE_SECRET) {
+    // Not configured yet; the per-phone, per-IP and global limits still apply.
+    console.log(JSON.stringify({ ...seen, verdict: "skipped_no_secret" }));
+    return true;
+  }
+  if (!token) {
+    console.warn(JSON.stringify({ ...seen, verdict: "refused_no_token" }));
+    return false;
+  }
   const form = new URLSearchParams({ secret: TURNSTILE_SECRET, response: token });
   if (ip) form.set("remoteip", ip);
   try {
@@ -186,8 +208,21 @@ async function turnstileOk(token: string, ip: string | null): Promise<boolean> {
       body: form.toString(),
     });
     const out = await res.json();
-    return out?.success === true;
-  } catch {
+    const ok = out?.success === true;
+    // Cloudflare's error-codes carry no secret and name the actual fault, which is
+    // what distinguishes a misconfiguration from an attack: invalid-input-secret is
+    // ours, timeout-or-duplicate is a replayed token, and a hostname that is not on
+    // the widget's allowed list surfaces here rather than as a bare refusal.
+    console[ok ? "log" : "warn"](JSON.stringify({
+      ...seen,
+      verdict: ok ? "verified" : "rejected",
+      error_codes: Array.isArray(out?.["error-codes"]) ? out["error-codes"] : [],
+    }));
+    return ok;
+  } catch (e) {
+    console.error(JSON.stringify({
+      ...seen, verdict: "siteverify_unreachable", detail: String(e),
+    }));
     return false; // fail closed: a broken check must not become an open door
   }
 }

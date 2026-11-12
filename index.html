@@ -6,6 +6,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="canonical" href="https://ozzily.com/">
 <title>Ozzily — Your GLP-1 SMS companion</title>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -484,6 +485,76 @@ class Component extends DCLogic {
     return map[key] || 'Something went wrong on our end — mind trying again in a moment?';
   }
 
+  // ---------------------------------------------------------------- Turnstile
+  //
+  // The SITEKEY IS PUBLIC by design -- Cloudflare serves it in the page -- so it
+  // belongs in the repo. The SECRET is a Supabase secret and must never appear here.
+  //
+  // ORDER OF DEPLOY MATTERS, and it is the opposite of the pay.html guard. Both
+  // sides deliberately fail OPEN while unconfigured: signup-verify's turnstileOk()
+  // returns true when TURNSTILE_SECRET is unset, and getTurnstileToken() below
+  // resolves null when the sitekey is empty. But once the SECRET is set, a request
+  // carrying no token is refused with challenge_failed. So: ship this page with a
+  // real sitekey FIRST, confirm tokens are arriving, and only THEN set the secret.
+  // Reverse it and every signup on the site breaks at once.
+  //
+  // Mode is execution:'execute' + appearance:'interaction-only': no visible widget
+  // for an ordinary visitor, and a challenge shown only when Cloudflare wants one.
+  // It cannot be hidden outright -- an interactive challenge has to be clickable --
+  // so the container is a fixed, centred overlay rather than an offscreen node.
+  TURNSTILE_SITEKEY = '0x4AAAAAAF9yBdTR1HLeLqeT';
+
+  // Rendered once, lazily, into a node appended to document.body. Deliberately NOT
+  // in the templated markup: the signup block lives inside sc-if branches that swap
+  // when the step changes from 'phone' to 'code', which would tear the widget down
+  // between the two calls that each need a token.
+  turnstileWidget() {
+    if (this._tsWidget !== undefined) return this._tsWidget;
+    if (!this.TURNSTILE_SITEKEY || !window.turnstile) { this._tsWidget = null; return null; }
+    var host = document.createElement('div');
+    host.id = 'ozz-turnstile';
+    host.setAttribute('style', 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;');
+    document.body.appendChild(host);
+    try {
+      this._tsWidget = window.turnstile.render(host, {
+        sitekey: this.TURNSTILE_SITEKEY,
+        execution: 'execute',
+        appearance: 'interaction-only',
+        callback: (token) => { if (this._tsResolve) { this._tsResolve(token); this._tsResolve = null; } },
+        'error-callback': () => { if (this._tsResolve) { this._tsResolve(null); this._tsResolve = null; } }
+      });
+    } catch (e) {
+      this._tsWidget = null;
+    }
+    return this._tsWidget;
+  }
+
+  // Resolves a FRESH token, or null. A Turnstile token is single-use and expires
+  // after 300s, so start and confirm each need their own: reset() then execute().
+  //
+  // The timeout is the point of this wrapper. If api.js is blocked by an extension,
+  // or the challenge never resolves, an un-timed await would leave the submit button
+  // disabled with no error -- a worse outcome than a refusal. Resolving null hands
+  // the decision to the server, which fails closed once the secret is set and
+  // returns challenge_failed, a key this page already maps to real copy.
+  getTurnstileToken() {
+    var id = this.turnstileWidget();
+    if (id === null || id === undefined) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      var done = false;
+      var finish = (t) => { if (!done) { done = true; this._tsResolve = null; resolve(t); } };
+      this._tsResolve = finish;
+      var t = setTimeout(() => finish(null), 8000);
+      (this.timers || []).push(t);
+      try {
+        window.turnstile.reset(id);
+        window.turnstile.execute(id);
+      } catch (e) {
+        finish(null);
+      }
+    });
+  }
+
   async postVerify(body) {
     const resp = await fetch('https://siblqlstyccysqryggtr.supabase.co/functions/v1/signup-verify', {
       method: 'POST',
@@ -522,9 +593,11 @@ class Component extends DCLogic {
       // Step 1 sends a code. NOTHING is created yet: no users row, no consent record,
       // no coaching text. Typing a stranger's number here now costs them one code and
       // gets them nothing else.
+      const tsToken = await this.getTurnstileToken();
       const out = await this.postVerify({
         action: 'start',
         phone: e164,
+        turnstile_token: tsToken || '',
         consent: true,
         consent_text: 'sms_opt_in_v2',
         plan: this.state.plan || '',
@@ -558,9 +631,11 @@ class Component extends DCLogic {
       // Step 2 is the only place a users row, a consent record and the welcome text
       // come into existence -- and only because Twilio confirmed this code reached
       // this number.
+      const tsToken = await this.getTurnstileToken();
       const out = await this.postVerify({
         action: 'confirm',
         phone: this.state.e164,
+        turnstile_token: tsToken || '',
         code: code,
         consent: true,
         consent_text: 'sms_opt_in_v2',

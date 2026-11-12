@@ -1268,7 +1268,7 @@ CREATE OR REPLACE FUNCTION public.verify_global_daily_cap()
  LANGUAGE sql
  IMMUTABLE SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
-AS $function$ select 200 $function$
+AS $function$ select 100 $function$
 ;
 
 CREATE OR REPLACE FUNCTION public.verify_mark_outcome(p_attempt_id bigint, p_outcome text)

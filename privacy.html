@@ -86,6 +86,7 @@
       <tr><td>Meal and workout photos</td><td>When you send them to Ozzily</td></tr>
       <tr><td>Message history</td><td>Every text exchange with Ozzily</td></tr>
       <tr><td>Streak and progress data</td><td>Calculated from your check-ins</td></tr>
+      <tr><td>IP address</td><td>When you sign up, to limit abuse of the form. We store it only as a one-way scrambled value we cannot reverse</td></tr>
       <tr><td>Payment status</td><td>From Paddle once you subscribe (we never see your card number)</td></tr>
     </table>
   </section>
@@ -106,6 +107,7 @@
     <p>Ozzily runs on a small set of trusted service providers, each of whom only receives what they need to do their job:</p>
     <ul>
       <li><strong>Twilio</strong> — delivers and receives your text messages, and sends the one-time code that verifies your number at signup</li>
+      <li><strong>Cloudflare</strong> — runs the Turnstile check on our signup form that tells real people apart from bots. It receives your IP address and signals about your browser; it never receives your phone number</li>
       <li><strong>Supabase</strong> — securely stores your account and message data</li>
       <li><strong>Anthropic</strong> — powers Ozzily's replies and analyzes meal and workout photos you send us (Claude)</li>
       <li><strong>Paddle</strong> (Paddle.com Market Limited) — our merchant of record; handles order processing, payments, tax, customer service enquiries about your order, and returns and refunds. We never see or store your card details</li>

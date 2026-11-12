@@ -474,9 +474,15 @@ class Component extends DCLogic {
     const map = {
       bad_phone: 'That number does not look right. Enter a 10-digit US number.',
       consent_required: 'Please check the box so Ozzily can text you.',
-      country_not_supported: 'Ozzily is US and Canada only for now. Sorry!',
+      country_not_supported: 'Ozzily is US only for now. Sorry!',
       too_many_attempts: 'Too many tries just now. Give it a few minutes and have another go.',
-      challenge_failed: 'We could not confirm you are human. Please reload and try again.',
+      // Names the cause, because the overwhelmingly likely one is an ad or privacy
+      // blocker stopping challenges.cloudflare.com from loading -- and in that case
+      // "reload and try again" is advice that cannot work, so the visitor reloads
+      // forever. Deliberately NOT refused client-side on a missing window.turnstile:
+      // the page cannot know whether the secret is set, and refusing early would
+      // break signup for blocker users while it is still unset.
+      challenge_failed: 'We could not confirm you are human. If you use an ad or privacy blocker, switch it off for ozzily.com and try again.',
       send_failed: 'We could not text that number. Mind double-checking it?',
       code_incorrect: 'That code did not match. Check the text and try again.',
       signup_failed: 'Something went wrong on our end. Mind trying again in a moment?',

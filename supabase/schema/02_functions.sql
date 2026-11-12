@@ -1217,7 +1217,7 @@ CREATE OR REPLACE FUNCTION public.verification_health()
 AS $function$
 declare
   v_starts        int;
-  v_cap           constant int := 200;
+  v_cap           int := public.verify_global_daily_cap();
   v_blocked       int;
   v_confirm_ok    int;
   v_confirm_bad   int;
@@ -1263,6 +1263,14 @@ begin
 end $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.verify_global_daily_cap()
+ RETURNS integer
+ LANGUAGE sql
+ IMMUTABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$ select 200 $function$
+;
+
 CREATE OR REPLACE FUNCTION public.verify_mark_outcome(p_attempt_id bigint, p_outcome text)
  RETURNS void
  LANGUAGE sql
@@ -1290,7 +1298,7 @@ declare
   v_global_day  int;
   v_id          bigint;
   v_reason      text := null;
-  c_global_cap  constant int := 200;
+  c_global_cap  int := public.verify_global_daily_cap();
 begin
   if p_action not in ('start', 'confirm') then
     return jsonb_build_object('allowed', false, 'reason', 'bad_action');
@@ -1408,6 +1416,8 @@ revoke all on function public.upsert_streak_day(p_user_id uuid) from public, ano
 grant execute on function public.upsert_streak_day(p_user_id uuid) to service_role;
 revoke all on function public.verification_health() from public, anon, authenticated;
 grant execute on function public.verification_health() to service_role;
+revoke all on function public.verify_global_daily_cap() from public, anon, authenticated;
+grant execute on function public.verify_global_daily_cap() to service_role;
 revoke all on function public.verify_mark_outcome(p_attempt_id bigint, p_outcome text) from public, anon, authenticated;
 grant execute on function public.verify_mark_outcome(p_attempt_id bigint, p_outcome text) to service_role;
 revoke all on function public.verify_rate_check(p_phone text, p_ip_hash text, p_action text) from public, anon, authenticated;
